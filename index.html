@@ -322,6 +322,10 @@
     font-size:12px;cursor:pointer;position:relative;}
   #actionBar button.danger{background:var(--accent2);}
   #actionBar button:disabled{opacity:.35;cursor:not-allowed;}
+  #actionBar.compact{gap:4px;padding:6px;}
+  #actionBar.compact button{font-size:9px;padding:4px 6px 4px 14px;border-radius:6px;}
+  #actionBar.compact .kbdNum{font-size:7px;padding:0 3px;left:2px;}
+  #actionBar.compact #selHint{font-size:10px;}
   .kbdNum{position:absolute;left:4px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.4);
     color:#fff;font-size:9px;font-weight:bold;padding:1px 4px;border-radius:4px;line-height:1.3;}
 
@@ -585,6 +589,22 @@
     <input type="text" id="syncJoinCodeInput" placeholder="4桁の同期コードを入力" maxlength="4" inputmode="numeric" style="letter-spacing:4px;text-align:center;font-size:18px;">
     <button class="main-btn" id="syncJoinBtn">同期コードで接続</button>
     <p class="statusMsg" id="syncConnStatus"></p>
+
+    <div style="border-top:1px solid var(--border);margin:18px 0;"></div>
+    <h3>☁️ 共有置き場と同期（サイト経由・簡単）</h3>
+    <p style="font-size:13px;color:var(--muted);line-height:1.7;">
+      このサイト自体（GitHubリポジトリ）を「みんなのカード置き場」として使う方法です。
+      両方が同時にオンラインである必要はなく、好きなタイミングで取得・追加ができます。
+    </p>
+    <label style="font-size:12px;color:var(--muted);">リポジトリ（例：ユーザー名/リポジトリ名）</label>
+    <input type="text" id="cloudRepoInput" placeholder="例：wan999562-ship-it/card-deck-builder-aaaaaa">
+    <label style="font-size:12px;color:var(--muted);">GitHubトークン（カードを追加する人のみ必要。取得だけなら空欄でOK）</label>
+    <input type="text" id="cloudTokenInput" placeholder="ghp_... （このカードだけに書き込み権限を絞った物を推奨）">
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button class="main-btn" id="cloudDownloadBtn" style="margin:0;">⬇️ 最新のカードを取得</button>
+      <button class="main-btn" id="cloudUploadBtn" style="margin:0;background:var(--accent2);">⬆️ 自分の新規カードを共有に追加</button>
+    </div>
+    <p class="statusMsg" id="cloudSyncStatus"></p>
   </div>
 </div>
 
@@ -740,6 +760,7 @@
       <span id="turnText">-</span>
       <button id="endTurnBtn" disabled>⏭ ターンエンド(Enter)</button>
       <button id="layoutToggleBtn">⬇ 操作ボタンを下に表示</button>
+      <button id="compactToggleBtn">🔎 ボタンを小さく</button>
       <span class="sep"></span>
       <select id="bgmSelect">
         <option value="">-- BGM --</option>
@@ -1353,6 +1374,91 @@ async function sHandleData(msg){
 function sPushCardIfConnected(kind, def){
   if(sConn && sConn.open) sConn.send({type:'cardPush', kind, def});
 }
+
+// ---- 共有置き場（GitHubリポジトリ）経由のカード同期 ----
+const cloudRepoInputEl = document.getElementById('cloudRepoInput');
+const cloudTokenInputEl = document.getElementById('cloudTokenInput');
+cloudRepoInputEl.value = localStorage.getItem('cardDbCloudRepo') || '';
+cloudTokenInputEl.value = localStorage.getItem('cardDbCloudToken') || '';
+cloudRepoInputEl.addEventListener('change', ()=> localStorage.setItem('cardDbCloudRepo', cloudRepoInputEl.value.trim()));
+cloudTokenInputEl.addEventListener('change', ()=> localStorage.setItem('cardDbCloudToken', cloudTokenInputEl.value.trim()));
+
+function b64EncodeUtf8(str){ return btoa(unescape(encodeURIComponent(str))); }
+function b64DecodeUtf8(str){ return decodeURIComponent(escape(atob(str))); }
+
+document.getElementById('cloudDownloadBtn').addEventListener('click', async ()=>{
+  const repo = cloudRepoInputEl.value.trim();
+  const statusEl = document.getElementById('cloudSyncStatus');
+  if(!repo){ statusEl.textContent = 'リポジトリ（ユーザー名/リポジトリ名）を入力してください'; return; }
+  statusEl.textContent = '取得中...';
+  try{
+    const res = await fetch(`https://raw.githubusercontent.com/${repo}/main/shared-cards.json?_=${Date.now()}`);
+    if(res.status===404){ statusEl.textContent = 'まだ共有カードはありません（誰かが追加すると出てきます）'; return; }
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const list = await res.json();
+    let added = 0;
+    const existingKeys = new Set(Object.values(customCards).map(c=>c.shareKey).filter(Boolean));
+    for(const def of list){
+      if(def.shareKey && existingKeys.has(def.shareKey)) continue; // 既に取り込み済み
+      const newId = nextCustomId++;
+      const newCard = {...def, id:newId};
+      customCards[newId] = newCard;
+      await idbPut('custom', newCard);
+      added++;
+    }
+    rebuildLib(); initFilters(); render(); renderDeck(); renderEval();
+    statusEl.textContent = added ? `新しく${added}枚取得しました。` : '新しいカードはありませんでした（もう最新です）。';
+  }catch(err){
+    statusEl.textContent = '取得に失敗しました：'+err.message;
+  }
+});
+
+document.getElementById('cloudUploadBtn').addEventListener('click', async ()=>{
+  const repo = cloudRepoInputEl.value.trim();
+  const token = cloudTokenInputEl.value.trim();
+  const statusEl = document.getElementById('cloudSyncStatus');
+  if(!repo){ statusEl.textContent = 'リポジトリ（ユーザー名/リポジトリ名）を入力してください'; return; }
+  if(!token){ statusEl.textContent = '追加にはGitHubトークンが必要です'; return; }
+  statusEl.textContent = 'アップロード中...';
+  try{
+    // 現在のファイルを取得（無ければ新規作成）
+    let sha = null, list = [];
+    const getRes = await fetch(`https://api.github.com/repos/${repo}/contents/shared-cards.json`, {
+      headers: { 'Authorization': `token ${token}` }
+    });
+    if(getRes.ok){
+      const data = await getRes.json();
+      sha = data.sha;
+      list = JSON.parse(b64DecodeUtf8(data.content));
+    } else if(getRes.status!==404){
+      throw new Error('取得エラー HTTP '+getRes.status);
+    }
+    const existingKeys = new Set(list.map(d=>d.shareKey).filter(Boolean));
+    const mine = Object.values(customCards);
+    let uploaded = 0;
+    for(const c of mine){
+      const key = c.shareKey || `${c.name}_${c.id}`;
+      if(existingKeys.has(key)) continue;
+      list.push({...c, id:undefined, shareKey:key});
+      existingKeys.add(key);
+      uploaded++;
+    }
+    if(uploaded===0){ statusEl.textContent = '新しく共有するカードはありませんでした（既にアップロード済みです）。'; return; }
+    const putRes = await fetch(`https://api.github.com/repos/${repo}/contents/shared-cards.json`, {
+      method: 'PUT',
+      headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: `カードを${uploaded}枚追加`,
+        content: b64EncodeUtf8(JSON.stringify(list, null, 1)),
+        sha: sha || undefined
+      })
+    });
+    if(!putRes.ok){ const t = await putRes.text(); throw new Error('アップロードエラー '+putRes.status+' '+t.slice(0,200)); }
+    statusEl.textContent = `${uploaded}枚のカードを共有置き場に追加しました。`;
+  }catch(err){
+    statusEl.textContent = '失敗しました：'+err.message;
+  }
+});
 
 function imgSrc(c, full){
   return `data:image/${c.mime||'webp'};base64,${full ? (c.imgFull||c.img) : c.img}`;
@@ -2283,6 +2389,8 @@ function bStartGame(){
   document.getElementById('battleDeckPick').style.display='none';
   document.getElementById('board').style.display='block';
   bApplyLayout();
+  if(window.innerWidth<=700) bCompactButtons = true;
+  bApplyCompact();
   bTurnIndex = 1;
   bAmFirstPlayer = bMyTurn;
   // Wildest Flower 長月あおい：デッキに入っている枚数だけ、必ず最初の手札に加える（5枚のうちの一部として扱う）
@@ -2339,6 +2447,18 @@ function bApplyLayout(){
 document.getElementById('layoutToggleBtn').addEventListener('click', ()=>{
   bSideLayout = !bSideLayout;
   bApplyLayout();
+});
+
+let bCompactButtons = false;
+function bApplyCompact(){
+  document.querySelectorAll('#actionBarFixed #actionBar').forEach(el=>{
+    el.classList.toggle('compact', bCompactButtons);
+  });
+  document.getElementById('compactToggleBtn').textContent = bCompactButtons ? '🔍 ボタンを大きく' : '🔎 ボタンを小さく';
+}
+document.getElementById('compactToggleBtn').addEventListener('click', ()=>{
+  bCompactButtons = !bCompactButtons;
+  bApplyCompact();
 });
 
 document.getElementById('endTurnBtn').addEventListener('click', ()=>{
