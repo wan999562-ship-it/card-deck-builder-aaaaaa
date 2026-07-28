@@ -1,0 +1,3487 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>カードデータベース & デッキビルダー</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#14161c">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
+<style>
+  :root{
+    --bg:#14161c; --panel:#1d2029; --panel2:#242833; --text:#eceef2; --muted:#9aa2b1;
+    --accent:#7c8bff; --accent2:#ff7c9c; --accent3:#5fd0a4; --border:#333748;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;background:var(--bg);color:var(--text);}
+  header{padding:16px 20px;background:var(--panel);border-bottom:1px solid var(--border);
+    display:flex;align-items:center;gap:16px;flex-wrap:wrap;position:sticky;top:0;z-index:10;}
+  header h1{font-size:18px;margin:0;white-space:nowrap;}
+  .stat{color:var(--muted);font-size:13px;}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;padding:12px 20px;background:var(--panel2);
+    border-bottom:1px solid var(--border);align-items:center;}
+  input[type=text], select{
+    background:#11131a;border:1px solid var(--border);color:var(--text);
+    padding:7px 10px;border-radius:8px;font-size:13px;
+  }
+  input[type=text]{width:200px;}
+  .layout{display:flex;}
+  main{flex:1;padding:16px 20px;}
+  #grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;overflow:hidden;
+    cursor:pointer;transition:transform .12s, border-color .12s;position:relative;}
+  .card:hover{transform:translateY(-3px);border-color:var(--accent);}
+  .card.selected{border-color:var(--accent2);box-shadow:0 0 0 2px var(--accent2);}
+  .card.compared{border-color:var(--accent3);box-shadow:0 0 0 2px var(--accent3);}
+  .card.maxed{opacity:.55;}
+  .card img{width:100%;display:block;}
+  .card .info{padding:6px 8px;font-size:11px;line-height:1.4;}
+  .card .name{font-weight:bold;font-size:12px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .card .meta{color:var(--muted);}
+  .rarityTag{display:inline-block;font-size:9px;font-weight:bold;padding:0 4px;border-radius:4px;vertical-align:1px;}
+  .rarityTag.r-N{background:#3a3d4a;color:#c2c6d6;}
+  .rarityTag.r-R{background:#1d4ed8;color:#dbeafe;}
+  .rarityTag.r-SR{background:#7c3aed;color:#ede9fe;}
+  .rarityTag.r-UR{background:#d97706;color:#fff7ed;}
+  .badge{position:absolute;top:4px;right:4px;background:var(--accent2);color:#fff;font-size:11px;
+    font-weight:bold;border-radius:10px;padding:1px 7px;}
+  .cmpBtn{position:absolute;top:4px;left:4px;background:rgba(0,0,0,.55);color:#fff;border:none;
+    border-radius:10px;font-size:11px;padding:2px 6px;cursor:pointer;}
+  .cmpBtn.on{background:var(--accent3);color:#0b1a14;font-weight:bold;}
+  .zoomBtn{position:absolute;bottom:34px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;
+    border-radius:10px;font-size:13px;padding:3px 7px;cursor:pointer;}
+  .zoomBtn:hover{background:var(--accent);}
+  aside{width:300px;background:var(--panel);border-left:1px solid var(--border);
+    padding:16px;position:sticky;top:73px;align-self:flex-start;height:calc(100vh - 73px);
+    display:flex;flex-direction:column;overflow-y:auto;}
+  aside h2{font-size:15px;margin:0 0 8px;}
+  #deckList{flex:1 1 auto;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:10px;min-height:80px;}
+  .deckItem{display:flex;align-items:center;gap:6px;background:var(--panel2);border-radius:8px;padding:4px 6px;font-size:12px;}
+  .deckItem img{width:32px;border-radius:4px;}
+  .deckItem span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .deckItem .qtybtn{background:none;border:1px solid var(--border);color:var(--text);cursor:pointer;
+    font-size:12px;width:20px;height:20px;border-radius:5px;line-height:1;}
+  .deckItem .qty{min-width:18px;text-align:center;font-weight:bold;}
+  .deckItem .rmbtn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;}
+  .deckItem .rmbtn:hover{color:var(--accent2);}
+  button.main-btn{background:var(--accent);color:#fff;border:none;border-radius:8px;
+    padding:10px;font-size:13px;font-weight:bold;cursor:pointer;width:100%;margin-top:4px;}
+  button.main-btn:hover{filter:brightness(1.1);}
+  button.main-btn:disabled{opacity:.4;cursor:not-allowed;}
+  button.sec-btn{background:none;border:1px solid var(--border);color:var(--muted);
+    border-radius:8px;padding:8px;font-size:12px;cursor:pointer;width:100%;margin-top:6px;}
+  button.sec-btn:hover{color:var(--text);border-color:var(--text);}
+
+  #deckProgress{height:6px;border-radius:3px;background:#11131a;overflow:hidden;margin-bottom:10px;}
+  #deckProgress .fill{height:100%;background:var(--accent);transition:width .15s;}
+  #deckProgress .fill.full{background:var(--accent3);}
+
+  #evalBox{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:12px;font-size:12px;flex:0 0 auto;}
+  #evalBox h3{margin:0;font-size:13px;color:var(--accent3);cursor:pointer;display:flex;justify-content:space-between;align-items:center;}
+  #evalBox #evalContent{max-height:32vh;overflow-y:auto;margin-top:8px;}
+  #evalBox.collapsed #evalContent{display:none;}
+  #evalBox .row{display:flex;justify-content:space-between;color:var(--muted);margin-bottom:2px;}
+  #evalBox .row b{color:var(--text);}
+  .curve{display:flex;align-items:flex-end;gap:2px;height:60px;margin:8px 0 4px;}
+  .curve .bar{flex:1;background:var(--accent);border-radius:2px 2px 0 0;position:relative;min-height:2px;}
+  .curve .bar span{position:absolute;bottom:-16px;left:0;right:0;text-align:center;font-size:9px;color:var(--muted);}
+  .curve .bar b{position:absolute;top:-14px;left:0;right:0;text-align:center;font-size:9px;color:var(--text);}
+  #evalWarn{color:var(--accent2);font-size:11px;margin-top:14px;line-height:1.5;}
+  #evalKeywords{margin-top:10px;padding-top:8px;border-top:1px solid var(--border);}
+  #evalKeywords .kwrow{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:3px;}
+  #evalKeywords .kwrow b{color:var(--text);}
+  #evalKeywords .kwbar{background:#11131a;border-radius:3px;height:5px;margin-bottom:6px;overflow:hidden;}
+  #evalKeywords .kwbar i{display:block;height:100%;background:var(--accent3);}
+
+  #compareBar{position:fixed;bottom:0;left:0;right:300px;background:var(--panel);border-top:1px solid var(--border);
+    padding:10px 20px;display:none;align-items:center;gap:10px;z-index:20;}
+  #compareBar.show{display:flex;}
+  #compareBar .thumbs{display:flex;gap:6px;flex:1;overflow-x:auto;}
+  #compareBar .thumbs img{width:36px;border-radius:4px;}
+
+  #modal,#cmpModal,#syncModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:150;
+    align-items:center;justify-content:center;}
+  #modal .box{background:var(--panel);border-radius:12px;padding:20px;max-width:640px;width:92%;
+    display:flex;flex-direction:column;gap:16px;max-height:92vh;overflow-y:auto;position:relative;}
+  #modal img{width:100%;max-height:70vh;object-fit:contain;border-radius:8px;flex-shrink:0;}
+  #modal .detail h3{margin:0 0 6px;font-size:18px;}
+  #modal .detail .meta{color:var(--muted);font-size:13px;margin-bottom:8px;}
+  #modal .detail .effect{font-size:13px;line-height:1.7;white-space:pre-wrap;}
+  #syncModal .box{background:var(--panel);border-radius:12px;padding:20px;max-width:440px;width:92%;
+    position:relative;max-height:88vh;overflow-y:auto;}
+  #syncModal h3{margin:0 0 10px;font-size:16px;}
+  #syncModal input[type=text]{width:100%;background:#11131a;border:1px solid var(--border);color:var(--text);
+    padding:10px;border-radius:8px;font-size:14px;margin:8px 0;}
+  #modal .close,#cmpModal .close,#syncModal .close,#sfxModal .close,#attackTargetModal .close{position:absolute;top:10px;right:14px;cursor:pointer;color:var(--muted);font-size:24px;}
+  #battleCloseBtn{background:var(--panel);border:1px solid var(--border);color:var(--text);font-size:20px;
+    width:38px;height:38px;border-radius:8px;cursor:pointer;}
+  #muteToggleBtn{position:absolute;top:14px;left:16px;background:none;border:1px solid var(--border);
+    color:var(--muted);border-radius:8px;font-size:16px;width:36px;height:36px;cursor:pointer;}
+  #muteToggleBtn:hover{color:var(--text);border-color:var(--text);}
+
+  #cmpModal .box{background:var(--panel);border-radius:12px;padding:20px;max-width:1100px;width:95%;
+    max-height:92vh;overflow:auto;position:relative;}
+  #cmpTable{border-collapse:collapse;width:100%;font-size:12px;}
+  #cmpTable th, #cmpTable td{border:1px solid var(--border);padding:8px;vertical-align:top;text-align:left;}
+  #cmpTable th{background:var(--panel2);color:var(--muted);white-space:nowrap;}
+  #cmpTable img{width:120px;border-radius:6px;}
+  #cmpTable .cname{font-weight:bold;font-size:13px;}
+
+  .editBtn{position:absolute;bottom:34px;left:4px;background:rgba(0,0,0,.6);color:#fff;border:none;
+    border-radius:10px;font-size:13px;padding:3px 7px;cursor:pointer;}
+  .editBtn:hover{background:var(--accent);}
+  #addCardBtn{background:var(--accent3);color:#0b1a14;border:none;border-radius:8px;
+    padding:8px 14px;font-size:13px;font-weight:bold;cursor:pointer;}
+  #editModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:110;
+    align-items:center;justify-content:center;}
+  #editModal .box{background:var(--panel);border-radius:12px;padding:20px;max-width:520px;width:92%;
+    max-height:92vh;overflow-y:auto;position:relative;}
+  #editModal h3{margin:0 0 14px;font-size:16px;}
+  #editModal label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px;}
+  #editModal input[type=text], #editModal input[type=number], #editModal select, #editModal textarea{
+    width:100%;background:#11131a;border:1px solid var(--border);color:var(--text);
+    padding:8px;border-radius:8px;font-size:13px;font-family:inherit;}
+  #editModal textarea{min-height:90px;resize:vertical;}
+  #editDropZone{border:2px dashed var(--border);border-radius:10px;padding:14px;text-align:center;
+    font-size:12px;color:var(--muted);cursor:pointer;margin-top:4px;}
+  #editDropZone.drag{border-color:var(--accent);color:var(--text);}
+  #editPreview{max-width:160px;max-height:220px;display:block;margin:10px auto 0;border-radius:8px;}
+  #editModal .row2{display:flex;gap:10px;}
+  #editModal .row2 > div{flex:1;}
+  #editModal .actions{display:flex;gap:8px;margin-top:16px;}
+  #editModal .actions button{flex:1;}
+  #editDelBtn{background:none;border:1px solid var(--accent2);color:var(--accent2);border-radius:8px;
+    padding:8px;font-size:12px;cursor:pointer;}
+
+  #gachaModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:120;
+    align-items:center;justify-content:center;}
+  #gachaModal .gbox{background:var(--panel);border-radius:14px;padding:24px;max-width:700px;width:94%;
+    max-height:92vh;overflow-y:auto;position:relative;text-align:center;}
+  #gachaHome h3{margin:0 0 6px;font-size:20px;}
+  .gRates{color:var(--muted);font-size:12px;margin:0 0 18px;}
+  .gBtnRow{display:flex;gap:12px;justify-content:center;margin-bottom:16px;}
+  .gBtnRow button{width:auto;padding:12px 24px;}
+  .gStats{font-size:12px;color:var(--muted);margin-bottom:14px;}
+  #gachaCardsArea{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px;min-height:150px;align-items:center;}
+  #gachaCardsArea.single{grid-template-columns:minmax(0,160px);justify-content:center;}
+  .gCard{width:100%;aspect-ratio:150/210;perspective:800px;cursor:pointer;}
+  .gCard .inner{position:relative;width:100%;height:100%;transition:transform .6s;transform-style:preserve-3d;}
+  .gCard.flipped .inner{transform:rotateY(180deg);}
+  .gCard .face{position:absolute;inset:0;backface-visibility:hidden;border-radius:8px;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;font-size:28px;}
+  .gCard .back{background:linear-gradient(135deg,#2a2d3a,#40445a);color:var(--accent3);border:1px solid var(--border);}
+  .gCard .back img{width:100%;height:100%;object-fit:cover;display:block;}
+  .gCard .front{transform:rotateY(180deg);background:#0b0c10;}
+  .gCard .front img{width:100%;height:100%;object-fit:cover;display:block;}
+  .gCard.r-SR .front{box-shadow:0 0 0 3px #7c3aed;}
+  .gCard.r-UR .front{box-shadow:0 0 0 3px #d97706;animation:urGlow 1.2s ease-in-out infinite alternate;}
+  @keyframes urGlow{from{box-shadow:0 0 6px 2px #d97706;}to{box-shadow:0 0 18px 6px #f59e0b;}}
+  .gCard .label{position:absolute;bottom:2px;left:2px;right:2px;background:rgba(0,0,0,.65);color:#fff;
+    font-size:9px;padding:2px 4px;border-radius:4px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+  #packStage{padding:20px 0 10px;}
+  .packArt{width:280px;margin:0 auto;position:relative;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:transform .18s ease;}
+  .packArt:hover{transform:scale(1.04) rotate(-1deg);}
+  .packArt img{width:100%;display:block;filter:drop-shadow(0 16px 30px rgba(0,0,0,.6));}
+  .packArt.tearing{animation:packTear .48s ease forwards;pointer-events:none;}
+  @keyframes packTear{
+    0%{transform:scale(1) rotate(0deg);opacity:1;}
+    35%{transform:scale(1.12) rotate(-4deg);}
+    100%{transform:scale(1.7) rotate(6deg);opacity:0;}
+  }
+  #packHint{color:var(--muted);font-size:13px;margin-top:16px;animation:pulseHint 1.3s ease-in-out infinite;}
+  @keyframes pulseHint{0%,100%{opacity:.45;}50%{opacity:1;}}
+
+  #cutInLayer{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;
+    background:rgba(0,0,0,0);}
+  #cutInLayer.show{display:flex;background:rgba(0,0,0,.8);}
+  .cutRays{position:absolute;top:50%;left:50%;width:220vmax;height:220vmax;margin-left:-110vmax;margin-top:-110vmax;
+    background:repeating-conic-gradient(from 0deg, rgba(255,255,255,.22) 0deg 6deg, transparent 6deg 20deg);
+    animation:rayRotate 7s linear infinite;transform-origin:center center;}
+  @keyframes rayRotate{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+  .cutCardWrap{position:relative;text-align:center;animation:cutInPop .5s cubic-bezier(.2,1.5,.4,1);}
+  @keyframes cutInPop{
+    0%{transform:scale(.15) rotate(-18deg);opacity:0;}
+    65%{transform:scale(1.1) rotate(3deg);opacity:1;}
+    100%{transform:scale(1) rotate(0deg);}
+  }
+  .cutCardWrap img{width:320px;border-radius:12px;display:block;margin:0 auto;}
+  .cutCardWrap.sr img{box-shadow:0 0 55px 16px rgba(124,58,237,.85);}
+  .cutCardWrap.ur img{box-shadow:0 0 70px 22px rgba(217,119,6,.9);animation:urCutGlow 1s ease-in-out infinite alternate;}
+  @keyframes urCutGlow{
+    from{box-shadow:0 0 55px 16px rgba(217,119,6,.75);}
+    to{box-shadow:0 0 90px 30px rgba(245,158,11,1);}
+  }
+  .cutRarityText{margin-top:16px;font-size:36px;font-weight:900;letter-spacing:3px;color:#fff;
+    text-shadow:0 0 16px rgba(255,255,255,.85);animation:cutTextPop .4s ease .15s backwards;}
+  .cutCardWrap.ur .cutRarityText{color:#fbbf24;text-shadow:0 0 20px rgba(251,191,36,.95);}
+  .cutCardWrap.sr .cutRarityText{color:#c4b5fd;text-shadow:0 0 20px rgba(196,181,253,.95);}
+  @keyframes cutTextPop{from{transform:scale(2.2);opacity:0;}to{transform:scale(1);opacity:1;}}
+  .cutNameText{margin-top:8px;font-size:22px;font-weight:900;color:#fff;letter-spacing:1px;
+    text-shadow:0 2px 10px rgba(0,0,0,.8);animation:cutNamePop .4s ease .3s backwards;
+    max-width:340px;}
+  @keyframes cutNamePop{from{transform:translateY(14px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+  .cutFlash{position:absolute;inset:0;background:#fff;opacity:0;animation:cutFlashPulse .5s ease-out;}
+  @keyframes cutFlashPulse{0%{opacity:.9;}100%{opacity:0;}}
+  .cutCardWrap .sparkle{position:absolute;width:6px;height:6px;background:#fff;border-radius:50%;
+    animation:sparkleFloat 1.1s ease-in infinite;}
+  @keyframes sparkleFloat{
+    0%{transform:translateY(0) scale(1);opacity:1;}
+    100%{transform:translateY(-70px) scale(0);opacity:0;}
+  }
+  /* ===== オンライン対戦画面 ===== */
+  #battleOverlay{display:none;position:fixed;inset:0;background:var(--bg);z-index:400;overflow-y:auto;padding:20px;}
+  #battleOverlay.show{display:block;}
+  .bScreen{max-width:520px;margin:40px auto;padding:20px;background:var(--panel);border-radius:12px;}
+  .bScreen h2{margin:0 0 14px;}
+  .bScreen input[type=text], .bScreen select{width:100%;background:#11131a;border:1px solid var(--border);
+    color:var(--text);padding:10px;border-radius:8px;font-size:14px;margin-bottom:10px;}
+  .bTab{display:flex;gap:8px;margin-bottom:14px;}
+  .bTab button{flex:1;background:var(--panel2);border:1px solid var(--border);color:var(--muted);
+    border-radius:8px;padding:8px;font-size:13px;cursor:pointer;}
+  .bTab button.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .roomCode{background:#11131a;border:1px solid var(--accent);border-radius:8px;padding:14px;
+    text-align:center;font-size:22px;font-weight:bold;letter-spacing:2px;margin:10px 0;user-select:all;}
+  .statusMsg{color:var(--muted);font-size:13px;text-align:center;margin-top:10px;}
+
+  #board{max-width:1000px;margin:0 auto;}
+  .halfBoard{display:flex;flex-direction:column;gap:8px;background-size:cover;background-position:center;border-radius:10px;}
+  .halfBoard.oppHalf{transform:rotate(180deg);margin-bottom:6px;}
+  .tableDivider{border-top:2px dashed var(--border);margin:10px 0;}
+  .zoneRow{display:flex;gap:8px;flex-wrap:wrap;}
+  .zoneBox{background:transparent;border:2px solid var(--border);border-radius:8px;padding:8px;flex:1;min-width:120px;transition:background .15s;}
+  .zoneBox:hover{background:rgba(29,32,41,.75);}
+  .zoneBox.wide{flex:1 1 100%;}
+  .zoneBox.battleHalf{border-color:#d9784a;min-height:150px;padding:14px;}
+  .zoneBox.battleHalf h4{background:rgba(0,0,0,.55);display:inline-block;padding:2px 8px;border-radius:6px;}
+  .zoneBox.battleHalf .zoneCards{gap:8px;justify-content:center;}
+  .zoneBox.battleHalf .mcard{width:76px;}
+  .zoneBox.manaRowBox{border-color:#5fac5f;}
+  .zoneBox.shieldRowBox{border-color:#4a78c9;}
+  .zoneBox.sumipeBox{flex:0 0 90px;min-width:70px;padding:6px;}
+  .zoneBox.sumipeBox h4{font-size:9px;}
+  .zoneBox.sumipeBox .mcard,.zoneBox.sumipeBox .backCard{width:40px;}
+  .zoneBox h4{font-size:11px;color:var(--muted);margin:0 0 6px;text-shadow:0 1px 3px rgba(0,0,0,.9);}
+  .halfBoard.oppHalf .zoneBox h4{transform:rotate(180deg);transform-origin:center;}
+  .halfBoard.oppHalf .backCard .cnt{transform:rotate(180deg);}
+  .zoneCards{display:flex;gap:4px;flex-wrap:wrap;min-height:64px;}
+  .mcard{width:52px;cursor:pointer;position:relative;}
+  .stackWrap{overflow:visible;}
+  .stackWrap .stackImg{position:absolute;width:100%;border-radius:5px;display:block;border:2px solid transparent;}
+  .stackWrap.selected .stackImg:last-child{border-color:var(--accent3);}
+  .stackWrap.tapped .stackImg:last-child{transform:rotate(90deg);}
+
+  /* 表向きカードのエフェクト */
+  .cardfx-glow img{box-shadow:0 0 10px 4px rgba(255,255,255,.75);}
+  .cardfx-pulse img{animation:cardfxPulse 1.6s ease-in-out infinite;}
+  @keyframes cardfxPulse{0%,100%{filter:brightness(1);}50%{filter:brightness(1.3);}}
+  .cardfx-sparkle::after{content:'✨';position:absolute;top:-6px;right:-6px;font-size:13px;
+    animation:cardfxSparkleSpin 1.3s linear infinite;pointer-events:none;}
+  @keyframes cardfxSparkleSpin{0%{transform:rotate(0deg) scale(1);}50%{transform:rotate(180deg) scale(1.3);}100%{transform:rotate(360deg) scale(1);}}
+  .cardfx-holo{overflow:hidden;border-radius:5px;}
+  .cardfx-holo::after{content:'';position:absolute;inset:0;border-radius:5px;pointer-events:none;
+    background:linear-gradient(120deg,transparent 30%,rgba(255,255,255,.55) 45%,rgba(255,0,255,.35) 50%,rgba(0,255,255,.35) 55%,transparent 70%);
+    background-size:250% 250%;animation:cardfxHoloSweep 2.4s linear infinite;}
+  @keyframes cardfxHoloSweep{0%{background-position:200% 0%;}100%{background-position:-50% 0%;}}
+  .cardfx-rainbow img{box-shadow:0 0 0 2px transparent;animation:cardfxRainbow 3s linear infinite;}
+  @keyframes cardfxRainbow{
+    0%{box-shadow:0 0 0 2px #ff5555;}
+    20%{box-shadow:0 0 0 2px #ffaa55;}
+    40%{box-shadow:0 0 0 2px #ffee55;}
+    60%{box-shadow:0 0 0 2px #55dd77;}
+    80%{box-shadow:0 0 0 2px #5599ff;}
+    100%{box-shadow:0 0 0 2px #ff5555;}
+  }
+  .mcard img{width:100%;border-radius:5px;display:block;border:2px solid transparent;transition:transform .1s;}
+  .mcard.tapped img{transform:rotate(90deg);}
+  .mcard.selected img{border-color:var(--accent3);}
+  .backCard{width:52px;height:72px;border-radius:5px;overflow:hidden;background:#0b0c10;position:relative;}
+  .backCard img{width:100%;height:100%;object-fit:cover;}
+  .backCard .cnt{position:absolute;bottom:2px;right:2px;background:rgba(0,0,0,.7);color:#fff;
+    font-size:11px;padding:0 4px;border-radius:4px;}
+  #topBars{background:var(--panel2);border:2px solid var(--border);border-radius:8px;padding:5px 10px;
+    display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:8px;font-size:11px;}
+  #topBars.myTurn{border-color:var(--accent3);}
+  #topBars.oppTurn{border-color:var(--accent2);}
+  #topBars #turnText{font-weight:bold;font-size:12px;margin-right:4px;}
+  #topBars .sep{width:1px;align-self:stretch;background:var(--border);margin:0 2px;}
+  #topBars button, #topBars select{background:var(--panel);border:1px solid var(--border);color:var(--text);
+    border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;}
+  #topBars button:hover{border-color:var(--accent);}
+  #endTurnBtn{background:var(--accent3) !important;color:#0b1a14 !important;font-weight:bold;}
+  #endTurnBtn:disabled{opacity:.35;cursor:not-allowed;background:var(--border) !important;color:var(--muted) !important;}
+  #bgmVolume{width:70px;vertical-align:middle;}
+  #actionBarFixed{position:sticky;bottom:0;left:0;right:0;background:var(--bg);padding-top:6px;z-index:60;}
+  #actionBar{display:flex;gap:8px;flex-wrap:wrap;background:var(--panel2);padding:10px;border-radius:10px;margin-bottom:8px;}
+  #actionBar button{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 12px 8px 24px;
+    font-size:12px;cursor:pointer;position:relative;}
+  #actionBar button.danger{background:var(--accent2);}
+  #actionBar button:disabled{opacity:.35;cursor:not-allowed;}
+  .kbdNum{position:absolute;left:4px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.4);
+    color:#fff;font-size:9px;font-weight:bold;padding:1px 4px;border-radius:4px;line-height:1.3;}
+
+  #actionBarFixed.sideLayout{position:fixed;top:0;left:0;bottom:0;right:auto;width:230px;
+    background:var(--panel);border-right:2px solid var(--border);padding:10px;overflow-y:auto;z-index:55;}
+  #actionBarFixed.sideLayout #actionBar{flex-direction:column;align-items:stretch;}
+  #actionBarFixed.sideLayout #actionBar button{width:100%;text-align:left;}
+  #actionBarFixed.sideLayout #selHint{align-self:flex-start;margin-bottom:4px;}
+  #battleOverlay.sideLayoutActive{padding-left:250px;}
+  @media (max-width:900px){
+    #battleOverlay.sideLayoutActive{padding-left:20px;}
+    #actionBarFixed.sideLayout{position:sticky;top:auto;left:auto;bottom:0;right:0;width:auto;
+      border-right:none;background:var(--bg);}
+    #actionBarFixed.sideLayout #actionBar{flex-direction:row;}
+    #actionBarFixed.sideLayout #actionBar button{width:auto;text-align:left;}
+  }
+  #board{padding-bottom:10px;}
+  .halfBoard{transition:filter .3s;}
+  .halfBoard.dimHalf{filter:brightness(.55);}
+  .halfBoard.activeHalf{filter:brightness(1.08);}
+  #logPanel{background:#0b0c10;border:1px solid var(--border);border-radius:8px;padding:4px 10px;
+    height:52px;overflow-y:auto;font-size:10px;color:var(--muted);}
+  #logPanel div{margin-bottom:2px;}
+  .oppLabel{color:var(--accent2);}
+  .selfLabel{color:var(--accent3);}
+
+  #battleCutIn{position:fixed;inset:0;z-index:500;display:none;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.75);flex-direction:column;}
+  #battleCutIn.show{display:flex;}
+
+  #shieldRevealModal,#deckSearchModal,#resultOverlay,#directAttackModal,#sfxModal,#attackTargetModal{display:none;position:fixed;inset:0;z-index:450;
+    background:rgba(0,0,0,.8);align-items:center;justify-content:center;}
+  #shieldRevealModal.show,#deckSearchModal.show,#resultOverlay.show,#directAttackModal.show,#sfxModal.show,#attackTargetModal.show{display:flex;}
+  #attackTargetModal .box{background:var(--panel);border-radius:12px;padding:20px;max-width:420px;width:92%;position:relative;}
+  #attackTargetGrid .atCard{cursor:pointer;border:2px solid transparent;border-radius:6px;overflow:hidden;}
+  #attackTargetGrid .atCard:hover{border-color:var(--accent2);}
+  #attackTargetGrid .atCard img{width:100%;display:block;}
+  #sfxModal .box{background:var(--panel);border-radius:12px;padding:20px;max-width:480px;width:92%;position:relative;}
+
+  #scriptModal{display:none;position:fixed;inset:0;z-index:460;background:rgba(0,0,0,.85);
+    align-items:center;justify-content:center;}
+  #scriptModal.show{display:flex;}
+  #scriptModal .box{background:var(--panel);border-radius:12px;padding:20px;max-width:640px;width:94%;
+    max-height:88vh;overflow-y:auto;position:relative;}
+  .ruleBlock{background:#1a1c24;border-radius:10px;padding:10px;margin-bottom:14px;border:1px solid var(--border);}
+  .scratchBlock{border-radius:8px;padding:8px 12px;margin-bottom:6px;color:#fff;font-size:13px;
+    display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .scratchBlock.hat{background:#e8a33d;border-radius:14px 14px 8px 8px;font-weight:bold;}
+  .scratchBlock.cond{background:#4a90d9;}
+  .scratchBlock.act{background:#5cb85c;}
+  .scratchBlock select, .scratchBlock input[type=number], .scratchBlock input[type=text]{
+    background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:5px;
+    padding:3px 6px;font-size:12px;}
+  .scratchBlock .rmBlockBtn{margin-left:auto;background:rgba(0,0,0,.3);border:none;color:#fff;
+    border-radius:5px;width:20px;height:20px;cursor:pointer;font-size:11px;}
+  .addSubBtn{background:none;border:1px dashed var(--border);color:var(--muted);border-radius:6px;
+    padding:4px 10px;font-size:11px;cursor:pointer;margin-bottom:8px;}
+  .ruleBlock .rmRuleBtn{background:var(--accent2);border:none;color:#fff;border-radius:6px;
+    padding:4px 10px;font-size:11px;cursor:pointer;float:right;}
+  #resultOverlay{z-index:480;}
+  #resultOverlay .box, #directAttackModal .box{background:var(--panel);border-radius:12px;padding:24px;
+    max-width:380px;width:90%;text-align:center;}
+  #resultText{font-size:28px;font-weight:900;margin-bottom:16px;}
+  #resultOverlay .actions, #directAttackModal .actions{display:flex;flex-direction:column;gap:8px;}
+  #directAttackModal img{width:150px;border-radius:10px;margin:8px auto;display:block;}
+  #directAttackModal #directAttackName{font-weight:bold;font-size:15px;margin-bottom:6px;}
+  #shieldRevealModal .box{background:var(--panel);border-radius:12px;padding:20px;max-width:360px;width:90%;text-align:center;}
+  #shieldRevealModal img{width:160px;border-radius:10px;margin:10px auto;display:block;}
+  #shieldRevealModal #shieldRevealName{font-weight:bold;font-size:15px;margin-bottom:6px;}
+  #shieldRevealModal #shieldRevealEffect{font-size:12px;color:var(--muted);white-space:pre-wrap;
+    max-height:140px;overflow-y:auto;text-align:left;margin-bottom:12px;}
+  #shieldRevealModal .actions{display:flex;flex-direction:column;gap:8px;}
+  #deckSearchModal .box{background:var(--panel);border-radius:12px;padding:20px;max-width:640px;width:92%;
+    max-height:85vh;overflow-y:auto;position:relative;}
+  #deckSearchGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;margin-top:10px;}
+  #deckSearchGrid .dsCard{cursor:pointer;border:2px solid transparent;border-radius:6px;overflow:hidden;}
+  #deckSearchGrid .dsCard:hover{border-color:var(--accent3);}
+  #deckSearchGrid .dsCard img{width:100%;display:block;}
+
+  #hoverPreview{position:fixed;top:70px;right:16px;bottom:16px;z-index:600;display:none;pointer-events:none;
+    background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px;
+    width:min(380px, 32vw);max-height:calc(100vh - 90px);overflow-y:auto;}
+  #hoverPreview.show{display:block;}
+  #hoverPreview img{width:100%;border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,.7);display:block;margin-bottom:10px;}
+  #hoverPreviewName{font-weight:bold;font-size:17px;margin-bottom:6px;}
+  #hoverPreviewMeta{font-size:13px;color:var(--muted);margin-bottom:8px;}
+  #hoverPreviewEffect{font-size:13px;color:var(--text);white-space:pre-wrap;line-height:1.6;}
+  @media (max-width:900px){
+    #hoverPreview{width:min(300px, 45vw);}
+  }
+  @media (max-width:700px){
+    #hoverPreview{display:none !important;}
+  }
+  #battleCutIn img{width:200px;border-radius:10px;box-shadow:0 0 40px 10px rgba(255,255,255,.4);}
+  #battleCutIn .txt{color:#fff;font-size:20px;font-weight:bold;margin-top:14px;text-shadow:0 0 10px #000;}
+
+  #battleCutIn.style-standard img{animation:bcStdPop .4s ease;}
+  @keyframes bcStdPop{from{transform:scale(.3);opacity:0;}to{transform:scale(1);opacity:1;}}
+
+  #battleCutIn.style-lightning::before{content:'';position:absolute;inset:0;
+    background:repeating-linear-gradient(100deg, rgba(255,255,255,.28) 0 2px, transparent 2px 40px);
+    animation:bcLightningFlash .22s steps(2) 3;}
+  @keyframes bcLightningFlash{0%{opacity:0;}50%{opacity:1;}100%{opacity:0;}}
+  #battleCutIn.style-lightning img{animation:bcShake .4s ease;}
+  @keyframes bcShake{0%,100%{transform:translateX(0);}20%{transform:translateX(-8px);}40%{transform:translateX(8px);}60%{transform:translateX(-5px);}80%{transform:translateX(5px);}}
+
+  #battleCutIn.style-burst::before{content:'';position:absolute;width:600px;height:600px;border-radius:50%;
+    background:radial-gradient(circle, rgba(255,220,120,.9) 0%, rgba(255,120,40,.4) 40%, transparent 70%);
+    animation:bcBurstGrow .5s ease-out;}
+  @keyframes bcBurstGrow{from{transform:scale(0);opacity:1;}to{transform:scale(1.2);opacity:0;}}
+  #battleCutIn.style-burst img{animation:bcBurstPop .45s cubic-bezier(.2,1.6,.4,1);}
+  @keyframes bcBurstPop{0%{transform:scale(.2) rotate(-10deg);opacity:0;}70%{transform:scale(1.15) rotate(3deg);}100%{transform:scale(1) rotate(0);}}
+
+  #battleCutIn.style-cinematic::before, #battleCutIn.style-cinematic::after{content:'';position:absolute;left:0;right:0;height:18vh;background:#000;}
+  #battleCutIn.style-cinematic::before{top:0;animation:bcBarTop .4s ease forwards;}
+  #battleCutIn.style-cinematic::after{bottom:0;animation:bcBarBottom .4s ease forwards;}
+  @keyframes bcBarTop{from{transform:translateY(-100%);}to{transform:translateY(0);}}
+  @keyframes bcBarBottom{from{transform:translateY(100%);}to{transform:translateY(0);}}
+  #battleCutIn.style-cinematic img{animation:bcZoomSlow 1s ease;}
+  @keyframes bcZoomSlow{from{transform:scale(1.3);opacity:0;}to{transform:scale(1);opacity:1;}}
+
+  #battleCutIn.style-slide img{animation:bcSlideIn .45s cubic-bezier(.2,1,.3,1);}
+  @keyframes bcSlideIn{from{transform:translateX(120%);opacity:0;}to{transform:translateX(0);opacity:1;}}
+
+  @media (max-width: 760px){
+    .mcard{width:40px;}
+    .backCard{width:40px;height:56px;}
+  }
+
+  @media (max-width: 760px){
+    header{padding:10px 12px;gap:8px;}
+    header h1{font-size:15px;}
+    header label{margin-left:0 !important;width:100%;order:5;}
+    #addCardBtn, #gachaOpenBtn{padding:7px 10px;font-size:12px;}
+    .controls{padding:10px 12px;gap:6px;}
+    input[type=text]{width:140px;}
+    .layout{flex-direction:column;}
+    #grid{grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:8px;}
+    aside{width:100%;position:static;height:auto;border-left:none;border-top:1px solid var(--border);
+      max-height:none;}
+    #deckList{max-height:38vh;}
+    #compareBar{right:0;flex-wrap:wrap;padding:8px 12px;}
+    #modal .box, #cmpModal .box, #editModal .box{width:96%;padding:14px;}
+    #cmpTable img{width:80px;}
+    #gachaModal .gbox{padding:16px;width:96%;}
+    .packArt{width:200px;}
+    #gachaCardsArea{gap:5px;}
+    .cutCardWrap img{width:220px;}
+    .cutRays{width:260vmax;height:260vmax;margin-left:-130vmax;margin-top:-130vmax;}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🃏 カードデータベース</h1>
+  <span class="stat" id="countStat"></span>
+  <button id="addCardBtn">➕ カードを追加</button>
+  <button id="gachaOpenBtn" style="background:var(--accent2);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:bold;cursor:pointer;">🎰 ガチャ</button>
+  <button id="syncBtn" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;">⇅ 同期</button>
+  <button id="battleOpenBtn" style="background:#d9534f;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:bold;cursor:pointer;">⚔️ オンライン対戦</button>
+  <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-left:auto;">
+    <input type="checkbox" id="sealedToggle"> 封入構築モード（ガチャで出たカードのみ）
+  </label>
+</header>
+<div class="controls">
+  <input type="text" id="searchBox" placeholder="カード名・効果で検索">
+  <select id="kindFilter"><option value="">種類：すべて</option></select>
+  <select id="raceFilter"><option value="">種族：すべて</option></select>
+  <select id="costFilter"><option value="">コスト：すべて</option></select>
+  <select id="sortSel">
+    <option value="cost">コスト順</option>
+    <option value="power">パワー順</option>
+    <option value="name">名前順</option>
+    <option value="rarity">レアリティ順</option>
+  </select>
+  <button id="sortDirBtn" class="sec-btn" style="width:auto;padding:7px 12px;margin:0;">昇順 ▲</button>
+  <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);">
+    <input type="checkbox" id="triggerFilter"> S・トリガーのみ
+  </label>
+</div>
+<div class="layout">
+  <main><div id="grid"></div></main>
+  <aside>
+    <h2>仮デッキ (<span id="deckCount">0</span> / 40)</h2>
+    <div id="deckProgress"><div class="fill" id="deckProgressFill" style="width:0%"></div></div>
+    <div id="deckList"></div>
+    <div id="evalBox">
+      <h3 id="evalToggle">📊 デッキ評価 <span id="evalArrow">▼</span></h3>
+      <div id="evalContent">デッキにカードを追加すると評価が表示されます</div>
+    </div>
+    <button class="main-btn" id="downloadBtn" disabled>📦 画像フォルダをダウンロード（原画質）</button>
+    <button class="main-btn" id="udonBtn" disabled style="background:var(--accent3);color:#0b1a14;">🎲 ユドナリウム山札を出力（直接読込み用）</button>
+    <button class="sec-btn" id="saveDeckBtn">💾 このデッキを保存</button>
+    <select id="savedDeckSel" style="width:100%;margin-top:6px;"><option value="">-- 保存済みデッキ --</option></select>
+    <div style="display:flex;gap:6px;margin-top:6px;">
+      <button class="sec-btn" id="loadDeckBtn" style="margin-top:0;">読み込む</button>
+      <button class="sec-btn" id="deleteDeckBtn" style="margin-top:0;">削除</button>
+    </div>
+    <button class="sec-btn" id="shareDeckBtn">🔗 このデッキを共有コードにする</button>
+    <textarea id="shareDeckOutput" readonly style="display:none;width:100%;height:60px;margin-top:6px;
+      background:#11131a;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px;font-size:11px;"></textarea>
+    <button class="sec-btn" id="shareCopyBtn" style="display:none;">コードをコピー</button>
+    <textarea id="importDeckInput" placeholder="共有コードをここに貼り付け" style="width:100%;height:50px;margin-top:8px;
+      background:#11131a;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px;font-size:11px;"></textarea>
+    <button class="sec-btn" id="importDeckBtn">📥 共有コードから読み込む</button>
+    <button class="sec-btn" id="clearBtn">デッキを空にする</button>
+  </aside>
+</div>
+
+<div id="compareBar">
+  <div class="thumbs" id="compareThumbs"></div>
+  <button class="main-btn" style="width:auto;padding:8px 16px;" id="compareOpenBtn">⚖ 比較する</button>
+  <button class="sec-btn" style="width:auto;padding:8px 12px;" id="compareClearBtn">クリア</button>
+</div>
+
+<div id="modal">
+  <div class="box">
+    <span class="close" id="modalClose">✕</span>
+    <img id="modalImg">
+    <div class="detail">
+      <h3 id="modalName"></h3>
+      <div class="meta" id="modalMeta"></div>
+      <div class="effect" id="modalEffect"></div>
+    </div>
+  </div>
+</div>
+
+<div id="cmpModal">
+  <div class="box">
+    <span class="close" id="cmpModalClose">✕</span>
+    <table id="cmpTable"></table>
+  </div>
+</div>
+
+<div id="syncModal">
+  <div class="box">
+    <span class="close" id="syncModalClose">✕</span>
+    <h3>⇅ デバイス間の同期</h3>
+    <p style="font-size:13px;color:var(--muted);line-height:1.7;">
+      追加・編集したカードや、ガチャの所持カードはこの端末のブラウザ内にだけ保存されています。
+      別の端末（スマホなど）で同じ内容を使いたいときは、以下でファイルを書き出して、
+      その端末に送って読み込んでください。自動では同期されません。
+    </p>
+    <button class="main-btn" id="syncExportBtn">📤 この端末のデータを書き出す</button>
+    <div style="height:14px;"></div>
+    <input type="file" id="syncImportInput" accept="application/json" style="display:none;">
+    <button class="sec-btn" id="syncImportBtn">📥 ファイルから読み込む（上書き統合されます）</button>
+
+    <div style="border-top:1px solid var(--border);margin:18px 0;"></div>
+    <h3>🔄 端末間リアルタイム同期</h3>
+    <p style="font-size:13px;color:var(--muted);line-height:1.7;">
+      オンライン対戦と同じように、もう一方の端末と直接つないで、追加・編集したカードをその場で送り合えます。
+      つないでいる間、新しく作った/編集したカードは自動的に相手にも届きます。
+    </p>
+    <button class="main-btn" id="syncCreateRoomBtn">同期ルームを作成</button>
+    <div id="syncHostCodeArea" style="display:none;">
+      <p style="font-size:12px;color:var(--muted);margin-top:10px;">このコードをもう一方の端末に入力してください：</p>
+      <div class="roomCode" id="syncRoomCodeText">------</div>
+    </div>
+    <div style="height:10px;"></div>
+    <input type="text" id="syncJoinCodeInput" placeholder="4桁の同期コードを入力" maxlength="4" inputmode="numeric" style="letter-spacing:4px;text-align:center;font-size:18px;">
+    <button class="main-btn" id="syncJoinBtn">同期コードで接続</button>
+    <p class="statusMsg" id="syncConnStatus"></p>
+  </div>
+</div>
+
+<div id="editModal">
+  <div class="box">
+    <span class="close" id="editModalClose">✕</span>
+    <h3 id="editModalTitle">カードを追加</h3>
+    <div id="editDropZone">ここに画像をドラッグ&ドロップ、またはクリックして選択</div>
+    <input type="file" id="editFileInput" accept="image/*" style="display:none;">
+    <img id="editPreview" style="display:none;">
+    <label>名前</label>
+    <input type="text" id="editName">
+    <div class="row2">
+      <div>
+        <label>種類</label>
+        <input type="text" id="editKind" list="kindOptions">
+        <datalist id="kindOptions"></datalist>
+      </div>
+      <div>
+        <label>種族</label>
+        <input type="text" id="editRace" list="raceOptions">
+        <datalist id="raceOptions"></datalist>
+      </div>
+    </div>
+    <div class="row2">
+      <div>
+        <label>コスト（数字または∞など）</label>
+        <input type="text" id="editCost">
+      </div>
+      <div>
+        <label>パワー</label>
+        <input type="text" id="editPower">
+      </div>
+    </div>
+    <label>レアリティ</label>
+    <select id="editRarity">
+      <option value="N">N（ノーマル）</option>
+      <option value="R">R（レア）</option>
+      <option value="SR">SR（スーパーレア）</option>
+      <option value="UR">UR（ウルトラレア）</option>
+    </select>
+    <label>対戦中・表向きエフェクト</label>
+    <select id="editCardFx">
+      <option value="none">なし</option>
+      <option value="glow">光る枠（グロー）</option>
+      <option value="pulse">明滅（パルス）</option>
+      <option value="sparkle">キラキラ（スパークル）</option>
+      <option value="holo">虹色の輝き（ホロ）</option>
+      <option value="rainbow">虹色の縁取り（レインボー枠）</option>
+    </select>
+    <label>バトルゾーン登場時カットイン</label>
+    <select id="editCutIn">
+      <option value="auto">自動（SR/UR相当なら表示）</option>
+      <option value="none">表示しない</option>
+      <option value="standard">スタンダード（光の輪）</option>
+      <option value="lightning">稲妻（ライトニング）</option>
+      <option value="burst">爆発（バースト）</option>
+      <option value="cinematic">シネマティック（黒帯）</option>
+      <option value="slide">スライドイン</option>
+    </select>
+    <label style="display:flex;align-items:center;gap:6px;margin-top:12px;">
+      <input type="checkbox" id="editIsTrigger" style="width:auto;">
+      S・トリガー（シールドブレイク時に確認を出す）
+    </label>
+    <label>効果</label>
+    <textarea id="editEffect"></textarea>
+    <button class="sec-btn" id="openScriptEditorBtn" style="margin-top:10px;">🧩 効果スクリプトを編集（<span id="scriptRuleCount">0</span>個のルール）</button>
+    <div class="actions">
+      <button class="sec-btn" id="editDelBtn" style="display:none;">🗑 削除</button>
+      <button class="main-btn" id="editSaveBtn">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="scriptModal">
+  <div class="box">
+    <span class="close" id="scriptModalClose">✕</span>
+    <h3>🧩 効果スクリプト（ミニルールエンジン）</h3>
+    <p style="font-size:12px;color:var(--muted);line-height:1.6;">
+      「◯◯した時」→「もし条件を満たすなら」→「これを実行する」をブロックで組み立てます。
+      オンライン対戦中、条件を満たすと自動で実行されます（自分側の盤面だけに作用します）。
+    </p>
+    <div id="scriptRulesList"></div>
+    <button class="sec-btn" id="addRuleBtn">＋ ルールを追加</button>
+  </div>
+</div>
+
+<div id="cutInLayer"></div>
+<div id="gachaModal">
+  <div class="gbox">
+    <span class="close" id="gachaModalClose">✕</span>
+    <button id="muteToggleBtn" title="サウンド切り替え">🔊</button>
+    <div id="gachaHome">
+      <h3>🎰 カードパック</h3>
+      <p class="gRates">確率：N 70% ／ R 20% ／ SR 8% ／ UR 2%　（10連は SR以上1枚確定）</p>
+      <div class="gBtnRow">
+        <button class="main-btn" id="gachaPull1">1回引く</button>
+        <button class="main-btn" id="gachaPull10" style="background:var(--accent2);">10連ガチャ</button>
+      </div>
+      <div class="gStats" id="gachaStats"></div>
+      <button class="sec-btn" id="gachaResetBtn">🗑 所持カードをリセット（封入構築をやり直す）</button>
+    </div>
+    <div id="gachaReveal" style="display:none;">
+      <div id="packStage">
+        <div id="packArt" class="packArt">
+          <img id="packImg" alt="パック">
+        </div>
+        <p id="packHint">タップして開封</p>
+      </div>
+      <div id="gachaCardsArea" style="display:none;"></div>
+      <p id="gachaRevealHint" style="display:none;color:var(--muted);font-size:13px;margin:0 0 10px;">▶ タップしてカードをめくる</p>
+      <div class="gBtnRow">
+        <button class="sec-btn" id="gachaSkipBtn" style="display:none;width:auto;padding:8px 16px;">⏭ スキップ（一気にめくる）</button>
+        <button class="main-btn" id="gachaCloseRevealBtn" style="display:none;width:auto;padding:10px 20px;">閉じる</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="battleOverlay">
+  <button id="battleCloseBtn" class="close" style="position:fixed;top:14px;right:18px;z-index:5;">✕</button>
+
+  <div id="battleHome" class="bScreen">
+    <h2>⚔️ オンライン対戦</h2>
+    <p style="color:var(--muted);font-size:13px;">友人とルームコードを共有して1対1で接続します。効果の解決などは自己申告制で進めてください。</p>
+    <div id="bHostPane">
+      <label style="font-size:12px;color:var(--muted);">ルームを作る</label>
+      <button class="main-btn" id="createRoomBtn">ルームを作成</button>
+      <div id="hostCodeArea" style="display:none;">
+        <p style="font-size:12px;color:var(--muted);margin-top:14px;">このコードを友人に送ってください：</p>
+        <div class="roomCode" id="roomCodeText">------</div>
+        <button class="sec-btn" id="copyCodeBtn">コピー</button>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--border);margin:18px 0;"></div>
+    <div id="bJoinPane">
+      <label style="font-size:12px;color:var(--muted);">ルームに参加する</label>
+      <input type="text" id="joinCodeInput" placeholder="4桁のルームコードを入力" maxlength="4" inputmode="numeric" style="letter-spacing:4px;text-align:center;font-size:18px;">
+      <button class="main-btn" id="joinRoomBtn">接続する</button>
+    </div>
+    <p class="statusMsg" id="connStatus"></p>
+  </div>
+
+  <div id="battleDeckPick" class="bScreen" style="display:none;">
+    <h2>使うデッキを選ぶ</h2>
+    <select id="battleDeckSel" style="width:100%;margin-bottom:12px;"></select>
+    <button class="main-btn" id="battleReadyBtn">このデッキで準備完了</button>
+    <p class="statusMsg" id="readyStatus"></p>
+  </div>
+
+  <div id="board" style="display:none;">
+    <div id="topBars">
+      <span id="turnText">-</span>
+      <button id="endTurnBtn" disabled>⏭ ターンエンド(Enter)</button>
+      <button id="layoutToggleBtn">⬇ 操作ボタンを下に表示</button>
+      <span class="sep"></span>
+      <select id="bgmSelect">
+        <option value="">-- BGM --</option>
+        <option value="ナイワ">ナイワ</option>
+        <option value="Baby Sweet Berry Love">Baby Sweet Berry Love</option>
+        <option value="JUNGLE FIRE">JUNGLE FIRE feat. MOTSU</option>
+        <option value="ボンキュッボン">ボン♡キュッ♡ボンは彼のモノ♡</option>
+        <option value="白線">澄み渡った空に白線</option>
+        <option value="しゅきしゅきソング">己肯定感爆上げ↑↑しゅきしゅきソング</option>
+        <option value="__custom__">その他（入力）</option>
+      </select>
+      <span id="bgmText">なし</span>
+      <button id="bgmClearBtn">停止</button>
+      <input type="range" id="bgmVolume" min="0" max="100" value="50" title="BGM音量">
+      <span class="sep"></span>
+      <button id="sleeveBtn">🎴スリーブ</button>
+      <button id="sleeveResetBtn">×</button>
+      <button id="playmatBtn">🖼プレイマット</button>
+      <button id="playmatResetBtn">×</button>
+      <input type="file" id="sleeveInput" accept="image/*" style="display:none;">
+      <input type="file" id="playmatInput" accept="image/*" style="display:none;">
+      <span class="sep"></span>
+      <button id="sfxSettingsBtn">🔊効果音設定</button>
+    </div>
+
+    <div class="halfBoard oppHalf">
+      <div class="zoneRow"><div class="zoneBox wide battleHalf" id="oppBattleBox"><h4>相手のバトルゾーン</h4><div class="zoneCards" id="oppBattle"></div></div></div>
+      <div class="zoneRow">
+        <div class="zoneBox shieldRowBox"><h4>相手の墓地<span id="oppGyCount"></span></h4><div class="zoneCards" id="oppGraveyard"></div></div>
+        <div class="zoneBox shieldRowBox"><h4>相手の手札</h4><div class="zoneCards" id="oppHand"></div></div>
+        <div class="zoneBox shieldRowBox"><h4>相手のシールド</h4><div class="zoneCards" id="oppShield"></div></div>
+        <div class="zoneBox shieldRowBox"><h4>相手の山札</h4><div class="zoneCards" id="oppDeck"></div></div>
+        <div class="zoneBox shieldRowBox sumipeBox"><h4>相手のすみぺゾーン</h4><div class="zoneCards" id="oppSumipe"></div></div>
+      </div>
+      <div class="zoneRow"><div class="zoneBox wide manaRowBox"><h4>相手のマナゾーン</h4><div class="zoneCards" id="oppMana"></div></div></div>
+    </div>
+
+    <div class="tableDivider"></div>
+
+    <div class="halfBoard myHalf">
+      <div class="zoneRow"><div class="zoneBox wide battleHalf" id="myBattleBox"><h4>自分のバトルゾーン</h4><div class="zoneCards" id="myBattle"></div></div></div>
+      <div class="zoneRow">
+        <div class="zoneBox shieldRowBox sumipeBox"><h4>自分のすみぺゾーン</h4><div class="zoneCards" id="mySumipe"></div></div>
+        <div class="zoneBox shieldRowBox"><h4>自分の山札<span id="myDeckCount"></span></h4><div class="zoneCards" id="myDeck"></div></div>
+        <div class="zoneBox shieldRowBox"><h4>自分のシールド<span id="myShieldCount"></span></h4><div class="zoneCards" id="myShield"></div></div>
+        <div class="zoneBox shieldRowBox"><h4>自分の手札</h4><div class="zoneCards" id="myHand"></div></div>
+        <div class="zoneBox shieldRowBox"><h4>自分の墓地<span id="myGyCount"></span></h4><div class="zoneCards" id="myGraveyard"></div></div>
+      </div>
+      <div class="zoneRow"><div class="zoneBox wide manaRowBox"><h4>自分のマナゾーン</h4><div class="zoneCards" id="myMana"></div></div></div>
+    </div>
+
+    <div id="actionBarFixed">
+      <div id="actionBar">
+        <button id="drawBtn">🎴 山札から引く</button>
+        <button id="deckShuffleBtn">🔀 山札をシャッフル</button>
+        <button id="deckSearchBtn">🔍 山札をサーチ</button>
+        <button id="deckLookBtn">👁 山札の上から見る</button>
+        <button id="deckTopToShieldBtn">🛡 山札の1枚目をシールドに</button>
+        <button id="breakShieldBtn">🛡 シールドブレイク</button>
+        <button id="untapAllBtn">🔄 一括アンタップ</button>
+        <button id="summonSumipeBtn" style="display:none;">👑 すみぺゾーンから召喚</button>
+        <button id="directAttackBtn" disabled style="display:none;background:#c0392b;">🎯 ダイレクトアタック</button>
+        <button id="endGameBtn" class="danger">🏁 対戦を終了</button>
+      </div>
+      <div id="actionBar">
+        <span id="selHint" style="color:var(--muted);font-size:12px;align-self:center;">カードを選択すると操作が選べます</span>
+        <button id="playManaBtn" disabled>マナゾーンに置く</button>
+        <button id="playBattleBtn" disabled>バトルゾーンに出す</button>
+        <button id="playShieldBtn" disabled>シールドゾーンに置く</button>
+        <button id="toHandBtn" disabled>選択したゾーンから手札に戻す</button>
+        <button id="tapBtn" disabled>タップ/アンタップ</button>
+        <button id="destroyBtn" class="danger" disabled>墓地に送る</button>
+        <button id="toDeckTopBtn" disabled>山札の一番上に戻す</button>
+        <button id="toDeckBottomBtn" disabled>山札の一番下に戻す</button>
+        <button id="revealBtn" disabled>相手に見せる</button>
+        <button id="attackBtn" disabled style="background:#c0392b;">⚔ 攻撃する</button>
+      </div>
+    </div>
+    <div id="logPanel"></div>
+  </div>
+</div>
+
+<div id="resultOverlay">
+  <div class="box">
+    <div id="resultText"></div>
+    <div class="actions">
+      <button class="main-btn" id="resultContinueBtn">続ける</button>
+      <button class="sec-btn" id="resultEndBtn">対戦を終了する</button>
+    </div>
+  </div>
+</div>
+
+<div id="directAttackModal">
+  <div class="box">
+    <h3>🎯 ダイレクトアタック</h3>
+    <img id="directAttackImg">
+    <div id="directAttackName"></div>
+    <p style="font-size:12px;color:var(--muted);">相手のシールドが0枚のため、直接攻撃を受けています。認めますか？</p>
+    <div class="actions">
+      <button class="main-btn" id="directAttackAgreeBtn">受け入れる（負けを認める）</button>
+      <button class="sec-btn" id="directAttackDenyBtn">認めない</button>
+    </div>
+  </div>
+</div>
+
+<div id="attackTargetModal">
+  <div class="box">
+    <span class="close" id="attackTargetClose">✕</span>
+    <h3>⚔ 攻撃対象を選ぶ</h3>
+    <button class="main-btn" id="attackShieldBtn">🛡 シールドを攻撃</button>
+    <p id="attackShieldHint" style="font-size:11px;color:var(--muted);display:none;">相手のシールドが0枚のときは「ダイレクトアタック」ボタンを使ってください。</p>
+    <div style="margin:14px 0;border-top:1px solid var(--border);"></div>
+    <p style="font-size:12px;color:var(--muted);">または、相手のクリーチャーを選んで攻撃：</p>
+    <div id="attackTargetGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:8px;"></div>
+  </div>
+</div>
+
+<div id="sfxModal">
+  <div class="box" style="max-width:480px;text-align:left;">
+    <span class="close" id="sfxModalClose">✕</span>
+    <h3>🔊 効果音設定</h3>
+    <p style="font-size:12px;color:var(--muted);">操作ごとの効果音を、お好きな音声ファイルに差し替えられます（この端末だけの設定です）。</p>
+    <div id="sfxList"></div>
+  </div>
+</div>
+
+<div id="shieldRevealModal">
+  <div class="box">
+    <h3>🛡 シールドブレイク</h3>
+    <img id="shieldRevealImg">
+    <div id="shieldRevealName"></div>
+    <div id="shieldRevealEffect"></div>
+    <div class="actions">
+      <button class="main-btn" id="shieldToBattleBtn">トリガーとして使う（バトルゾーンへ）</button>
+      <button class="sec-btn" id="shieldToHandBtn">手札に加える</button>
+    </div>
+  </div>
+</div>
+
+<div id="deckSearchModal">
+  <div class="box">
+    <span class="close" id="deckSearchClose">✕</span>
+    <h3 id="deckSearchTitle">🔍 山札をサーチ（自分だけに見えています）</h3>
+    <p id="deckSearchHint" style="font-size:12px;color:var(--muted);">1枚選んで手札に加えます。選んだあと山札はシャッフルされます。</p>
+    <div id="deckSearchGrid"></div>
+  </div>
+</div>
+
+<div id="hoverPreview">
+  <img id="hoverPreviewImg">
+  <div id="hoverPreviewName"></div>
+  <div id="hoverPreviewMeta"></div>
+  <div id="hoverPreviewEffect"></div>
+</div>
+
+
+<div id="battleCutIn">
+  <img id="cutInImg">
+  <div class="txt" id="cutInTxt"></div>
+</div>
+
+<script src="cards_data.js"></script>
+<script src="back_data.js"></script>
+<script src="pack_data.js"></script>
+<script src="bgm_data.js"></script>
+<script>
+const MAX_PER_CARD = 4;
+const MAX_DECK = 40;
+const deck = new Map();      // id -> {card, qty}
+const compare = new Map();   // id -> card (比較リスト)
+const MAX_COMPARE = 4;
+
+// ---------- 追加・編集カードの永続化（IndexedDB） ----------
+let LIB = [...CARDS];  // 表示用の全カード一覧（追加・編集を反映）
+let db, customCards = {}, editOverrides = {};
+let nextCustomId = 1000000;
+
+function openDB(){
+  return new Promise((resolve)=>{
+    const req = indexedDB.open('cardDeckBuilderDB', 3);
+    req.onupgradeneeded = (e)=>{
+      const d = e.target.result;
+      if(!d.objectStoreNames.contains('custom')) d.createObjectStore('custom', {keyPath:'id'});
+      if(!d.objectStoreNames.contains('edits')) d.createObjectStore('edits', {keyPath:'id'});
+      if(!d.objectStoreNames.contains('gacha')) d.createObjectStore('gacha', {keyPath:'id'});
+      if(!d.objectStoreNames.contains('decks')) d.createObjectStore('decks', {keyPath:'name'});
+    };
+    req.onsuccess = (e)=>{ db=e.target.result; resolve(); };
+    req.onerror = ()=>{ resolve(); }; // 使えなくても致命的ではない
+  });
+}
+function idbGetAll(store){
+  return new Promise((resolve)=>{
+    if(!db){ resolve([]); return; }
+    const tx = db.transaction(store,'readonly');
+    const req = tx.objectStore(store).getAll();
+    req.onsuccess=()=>resolve(req.result||[]);
+    req.onerror=()=>resolve([]);
+  });
+}
+function idbPut(store, obj){
+  return new Promise((resolve)=>{
+    if(!db){ resolve(); return; }
+    const tx = db.transaction(store,'readwrite');
+    tx.objectStore(store).put(obj);
+    tx.oncomplete=()=>resolve();
+    tx.onerror=()=>resolve();
+  });
+}
+function idbDelete(store, id){
+  return new Promise((resolve)=>{
+    if(!db){ resolve(); return; }
+    const tx = db.transaction(store,'readwrite');
+    tx.objectStore(store).delete(id);
+    tx.oncomplete=()=>resolve();
+    tx.onerror=()=>resolve();
+  });
+}
+
+function rebuildLib(){
+  const base = CARDS.map(c=> editOverrides[c.id] ? {...c, ...editOverrides[c.id]} : c);
+  const customs = Object.values(customCards).map(c=> editOverrides[c.id] ? {...c, ...editOverrides[c.id]} : c);
+  LIB = [...base, ...customs];
+}
+
+async function loadUserData(){
+  await openDB();
+  const customs = await idbGetAll('custom');
+  const edits = await idbGetAll('edits');
+  customCards = {}; customs.forEach(c=>{ customCards[c.id]=c; if(c.id>=nextCustomId) nextCustomId=c.id+1; });
+  editOverrides = {}; edits.forEach(e=>{ editOverrides[e.id]=e; });
+  rebuildLib();
+  await loadGacha();
+}
+
+// ---------- ガチャ（所持カードの永続化） ----------
+let gachaCollection = {}; // id -> 所持枚数
+let sealedMode = false;
+// ---------- サウンド演出（合成音、ミュート切り替え対応） ----------
+let audioCtx = null;
+let muted = (localStorage.getItem('cardDbMuted')==='1');
+function getAudioCtx(){
+  if(!audioCtx){
+    try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return null; }
+  }
+  if(audioCtx.state==='suspended') audioCtx.resume();
+  return audioCtx;
+}
+function beep({freq=440, endFreq=null, duration=0.15, type='sine', startTime=0, gain=0.18}){
+  if(muted) return;
+  const ctx = getAudioCtx();
+  if(!ctx) return;
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = type;
+  const t0 = ctx.currentTime+startTime;
+  osc.frequency.setValueAtTime(freq, t0);
+  if(endFreq) osc.frequency.exponentialRampToValueAtTime(Math.max(endFreq,1), t0+duration);
+  g.gain.setValueAtTime(gain, t0);
+  g.gain.exponentialRampToValueAtTime(0.001, t0+duration);
+  osc.connect(g); g.connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t0+duration+0.03);
+}
+function playPackTear(){
+  beep({freq:1400, endFreq:180, duration:0.35, type:'sawtooth', gain:0.14});
+  beep({freq:2200, endFreq:400, duration:0.2, type:'triangle', gain:0.08, startTime:0.02});
+}
+function playFlip(){
+  beep({freq:520, endFreq:820, duration:0.08, type:'triangle', gain:0.09});
+}
+function playChime(rarity){
+  if(rarity==='UR'){
+    [523,659,784,1046,1318,1568].forEach((f,i)=>beep({freq:f, duration:0.35, type:'triangle', startTime:i*0.09, gain:0.16}));
+  } else {
+    [523,659,784,1046].forEach((f,i)=>beep({freq:f, duration:0.28, type:'triangle', startTime:i*0.09, gain:0.14}));
+  }
+}
+function updateMuteBtn(){
+  document.getElementById('muteToggleBtn').textContent = muted ? '🔇' : '🔊';
+}
+document.getElementById('muteToggleBtn').addEventListener('click', ()=>{
+  muted = !muted;
+  localStorage.setItem('cardDbMuted', muted ? '1':'0');
+  updateMuteBtn();
+});
+updateMuteBtn();
+
+const RARITY_WEIGHTS = { N:70, R:20, SR:8, UR:2 };
+
+async function loadGacha(){
+  const rows = await idbGetAll('gacha');
+  gachaCollection = {};
+  rows.forEach(r=>{ gachaCollection[r.id] = r.count; });
+}
+function gachaCount(id){ return gachaCollection[id]||0; }
+async function addGachaCard(c){
+  gachaCollection[c.id] = (gachaCollection[c.id]||0)+1;
+  await idbPut('gacha', {id:c.id, count:gachaCollection[c.id]});
+}
+async function resetGacha(){
+  const rows = await idbGetAll('gacha');
+  for(const r of rows) await idbDelete('gacha', r.id);
+  gachaCollection = {};
+}
+
+function pickRarity(onlyTiers){
+  const pool = Object.entries(RARITY_WEIGHTS).filter(([r])=> !onlyTiers || onlyTiers.includes(r));
+  const total = pool.reduce((s,[,w])=>s+w,0);
+  let roll = Math.random()*total;
+  for(const [r,w] of pool){
+    if(roll<w) return r;
+    roll -= w;
+  }
+  return pool[pool.length-1][0];
+}
+function pullOneCard(guaranteeRare){
+  let tier = guaranteeRare ? pickRarity(['SR','UR']) : pickRarity();
+  let candidates = LIB.filter(c=>(c.rarity||'N')===tier);
+  if(candidates.length===0){
+    for(const t of ['UR','SR','R','N']){
+      candidates = LIB.filter(c=>(c.rarity||'N')===t);
+      if(candidates.length) break;
+    }
+  }
+  return candidates[Math.floor(Math.random()*candidates.length)];
+}
+function doPull(n){
+  const results = [];
+  for(let i=0;i<n;i++){
+    const guarantee = (n>=10 && i===n-1);
+    results.push(pullOneCard(guarantee));
+  }
+  return results;
+}
+
+function renderGachaStats(){
+  const total = Object.values(gachaCollection).reduce((a,b)=>a+b,0);
+  const kinds = Object.keys(gachaCollection).length;
+  document.getElementById('gachaStats').textContent = `所持カード：${total}枚（${kinds}種類）`;
+}
+
+function showCutIn(c, fast){
+  return new Promise(resolve=>{
+    const layer = document.getElementById('cutInLayer');
+    const cls = c.rarity==='UR' ? 'ur' : 'sr';
+    let sparkles = '';
+    for(let i=0;i<16;i++){
+      const x = Math.round(Math.random()*260-40);
+      const y = Math.round(Math.random()*340-50);
+      const delay = (Math.random()*0.9).toFixed(2);
+      sparkles += `<span class="sparkle" style="left:${x}px;top:${y}px;animation-delay:${delay}s;"></span>`;
+    }
+    layer.innerHTML = `<div class="cutFlash"></div>
+      <div class="cutRays"></div>
+      <div class="cutCardWrap ${cls}">
+        <img src="${imgSrc(c)}">
+        ${sparkles}
+        <div class="cutRarityText">${c.rarity} !</div>
+        <div class="cutNameText">${c.name}</div>
+      </div>`;
+    layer.classList.add('show');
+    playChime(c.rarity);
+    setTimeout(()=>{
+      layer.classList.remove('show');
+      layer.innerHTML='';
+      resolve();
+    }, fast ? 400 : 1800);
+  });
+}
+
+// ---------- 1枚ずつクリックでめくる演出（スキップで一気にめくり） ----------
+let revealCards = [], revealEls = [], revealIndex = 0, revealBusy = false, skipRequested = false;
+
+function updateRevealHint(){
+  const hint = document.getElementById('gachaRevealHint');
+  if(revealIndex>=revealCards.length || skipRequested){ hint.style.display='none'; return; }
+  hint.style.display='block';
+  hint.textContent = `▶ タップしてカードをめくる（${revealIndex+1}/${revealCards.length}）`;
+}
+
+async function revealOne(){
+  if(revealBusy || revealIndex>=revealCards.length) return;
+  revealBusy = true;
+  const el = revealEls[revealIndex];
+  const c = revealCards[revealIndex];
+  el.classList.add('flipped');
+  playFlip();
+  if(c.rarity==='SR' || c.rarity==='UR'){
+    await new Promise(r=>setTimeout(r, skipRequested?150:380));
+    await showCutIn(c, false);
+  } else {
+    await new Promise(r=>setTimeout(r, skipRequested?80:0));
+  }
+  revealIndex++;
+  revealBusy = false;
+  if(revealIndex>=revealCards.length){
+    await finishReveal();
+  } else {
+    updateRevealHint();
+    if(skipRequested) revealOne();
+  }
+}
+
+async function finishReveal(){
+  for(const c of revealCards) await addGachaCard(c);
+  renderGachaStats();
+  document.getElementById('gachaRevealHint').style.display='none';
+  document.getElementById('gachaSkipBtn').style.display='none';
+  document.getElementById('gachaCloseRevealBtn').style.display='inline-block';
+}
+
+document.getElementById('gachaCardsArea').addEventListener('click', ()=>{
+  if(!skipRequested) revealOne();
+});
+document.getElementById('gachaSkipBtn').addEventListener('click', ()=>{
+  skipRequested = true;
+  document.getElementById('gachaRevealHint').style.display='none';
+  if(!revealBusy) revealOne();
+});
+
+async function runPull(n){
+  const cards = doPull(n);
+  document.getElementById('gachaHome').style.display='none';
+  const revealEl = document.getElementById('gachaReveal');
+  revealEl.style.display='block';
+  document.getElementById('gachaCloseRevealBtn').style.display='none';
+  document.getElementById('gachaSkipBtn').style.display='none';
+  document.getElementById('gachaRevealHint').style.display='none';
+  const area = document.getElementById('gachaCardsArea');
+  area.style.display='none';
+  area.innerHTML='';
+
+  // パック開封演出
+  const packStage = document.getElementById('packStage');
+  const packArt = document.getElementById('packArt');
+  packArt.classList.remove('tearing');
+  packStage.style.display='block';
+  await new Promise(resolve=>{
+    packArt.onclick = ()=>{
+      packArt.classList.add('tearing');
+      playPackTear();
+      setTimeout(resolve, 460);
+    };
+  });
+  packStage.style.display='none';
+
+  area.style.display='grid';
+  area.classList.toggle('single', n===1);
+  revealCards = cards;
+  revealIndex = 0;
+  revealBusy = false;
+  skipRequested = false;
+  revealEls = cards.map(c=>{
+    const div = document.createElement('div');
+    div.className = `gCard r-${c.rarity||'N'}`;
+    div.innerHTML = `<div class="inner">
+      <div class="face back"><img src="data:image/${CARD_BACK_MIME};base64,${CARD_BACK}"></div>
+      <div class="face front"><img src="${imgSrc(c)}"><div class="label">${c.name}</div></div>
+    </div>`;
+    div.addEventListener('dblclick', (e)=>{ e.stopPropagation(); showModal(c); });
+    area.appendChild(div);
+    return div;
+  });
+  document.getElementById('gachaSkipBtn').style.display='inline-block';
+  updateRevealHint();
+}
+
+document.getElementById('gachaOpenBtn').addEventListener('click', ()=>{
+  document.getElementById('gachaHome').style.display='block';
+  document.getElementById('gachaReveal').style.display='none';
+  renderGachaStats();
+  document.getElementById('gachaModal').style.display='flex';
+});
+document.getElementById('gachaModalClose').addEventListener('click', ()=>{ document.getElementById('gachaModal').style.display='none'; });
+document.getElementById('gachaModal').addEventListener('click', (e)=>{ if(e.target.id==='gachaModal') e.target.style.display='none'; });
+document.getElementById('gachaPull1').addEventListener('click', ()=>runPull(1));
+document.getElementById('gachaPull10').addEventListener('click', ()=>runPull(10));
+document.getElementById('gachaCloseRevealBtn').addEventListener('click', ()=>{
+  document.getElementById('gachaReveal').style.display='none';
+  document.getElementById('gachaHome').style.display='block';
+  render();
+});
+document.getElementById('gachaResetBtn').addEventListener('click', async ()=>{
+  if(!confirm('ガチャで集めたカードの所持数をすべてリセットします。よろしいですか？')) return;
+  await resetGacha();
+  deck.clear();
+  renderGachaStats();
+  render(); renderDeck(); renderEval();
+});
+document.getElementById('sealedToggle').addEventListener('change', (e)=>{
+  sealedMode = e.target.checked;
+  if(sealedMode) deck.clear();
+  render(); renderDeck(); renderEval();
+});
+
+// ---------- 端末間の同期（手動エクスポート／インポート） ----------
+document.getElementById('syncBtn').addEventListener('click', ()=>{
+  document.getElementById('syncModal').style.display='flex';
+});
+document.getElementById('syncModalClose').addEventListener('click', ()=>{ document.getElementById('syncModal').style.display='none'; });
+document.getElementById('syncModal').addEventListener('click', (e)=>{ if(e.target.id==='syncModal') e.target.style.display='none'; });
+
+document.getElementById('syncExportBtn').addEventListener('click', async ()=>{
+  const [customRows, editRows, gachaRows] = await Promise.all([
+    idbGetAll('custom'), idbGetAll('edits'), idbGetAll('gacha')
+  ]);
+  const payload = { version:1, exportedAt: new Date().toISOString(),
+    custom: customRows, edits: editRows, gacha: gachaRows };
+  const blob = new Blob([JSON.stringify(payload)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0,10);
+  a.href = url; a.download = `carddb_sync_${stamp}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('syncImportBtn').addEventListener('click', ()=>{
+  document.getElementById('syncImportInput').click();
+});
+document.getElementById('syncImportInput').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  try{
+    const text = await file.text();
+    const data = JSON.parse(text);
+    for(const row of (data.custom||[])) await idbPut('custom', row);
+    for(const row of (data.edits||[])) await idbPut('edits', row);
+    for(const row of (data.gacha||[])) await idbPut('gacha', row);
+    await loadUserData();
+    initFilters();
+    render(); renderDeck(); renderEval(); renderGachaStats();
+    document.getElementById('syncModal').style.display='none';
+    flashMsg('データを読み込みました');
+  }catch(err){
+    flashMsg('ファイルの読み込みに失敗しました');
+  }
+  e.target.value = '';
+});
+
+// ---- P2Pリアルタイム同期（オンライン対戦と同じ仕組みでカードを送り合う） ----
+const SYNC_ROOM_PREFIX = 'dm-cardsync-';
+let sPeer, sConn;
+function sGenerateRoomCode(){ return String(Math.floor(1000+Math.random()*9000)); }
+function sSetupConn(c){
+  sConn = c;
+  sConn.on('open', async ()=>{
+    document.getElementById('syncConnStatus').textContent = '接続しました！自動でカードを送り合います。';
+    await sSendFullSync();
+  });
+  sConn.on('data', sHandleData);
+  sConn.on('close', ()=>{ document.getElementById('syncConnStatus').textContent = '接続が切断されました。'; sConn=null; });
+}
+function sTryCreateRoom(attemptsLeft){
+  const code = sGenerateRoomCode();
+  sPeer = new Peer(SYNC_ROOM_PREFIX+code);
+  sPeer.on('open', ()=>{
+    document.getElementById('syncHostCodeArea').style.display='block';
+    document.getElementById('syncRoomCodeText').textContent = code;
+    document.getElementById('syncConnStatus').textContent = '相手の接続を待っています...';
+  });
+  sPeer.on('connection', c=>sSetupConn(c));
+  sPeer.on('error', e=>{
+    if(e.type==='unavailable-id' && attemptsLeft>0){ sPeer.destroy(); sTryCreateRoom(attemptsLeft-1); }
+    else document.getElementById('syncConnStatus').textContent = '接続エラー：'+e.type;
+  });
+}
+document.getElementById('syncCreateRoomBtn').addEventListener('click', ()=>{
+  document.getElementById('syncConnStatus').textContent = '接続準備中...';
+  sTryCreateRoom(5);
+});
+document.getElementById('syncJoinBtn').addEventListener('click', ()=>{
+  const code = document.getElementById('syncJoinCodeInput').value.trim();
+  if(!code) return;
+  document.getElementById('syncConnStatus').textContent = '接続中...';
+  sPeer = new Peer();
+  sPeer.on('open', ()=>{ sSetupConn(sPeer.connect(SYNC_ROOM_PREFIX+code)); });
+  sPeer.on('error', e=>{ document.getElementById('syncConnStatus').textContent = '接続エラー：'+e.type; });
+});
+async function sSendFullSync(){
+  if(!sConn || !sConn.open) return;
+  const custom = await idbGetAll('custom');
+  const edits = await idbGetAll('edits');
+  sConn.send({type:'fullSync', custom, edits});
+}
+async function sMergeCustomCard(def){
+  const newId = nextCustomId++;
+  const newCard = {...def, id:newId};
+  customCards[newId] = newCard;
+  await idbPut('custom', newCard);
+}
+async function sMergeEdit(def){
+  editOverrides[def.id] = def;
+  await idbPut('edits', def);
+}
+async function sHandleData(msg){
+  if(msg.type==='fullSync'){
+    for(const def of (msg.custom||[])) await sMergeCustomCard(def);
+    for(const def of (msg.edits||[])) await sMergeEdit(def);
+    rebuildLib(); initFilters(); render(); renderDeck(); renderEval();
+    document.getElementById('syncConnStatus').textContent = `相手のカード ${(msg.custom||[]).length + (msg.edits||[]).length}件 を受信しました。`;
+  } else if(msg.type==='cardPush'){
+    if(msg.kind==='custom') await sMergeCustomCard(msg.def);
+    else if(msg.kind==='edit') await sMergeEdit(msg.def);
+    rebuildLib(); initFilters(); render(); renderDeck(); renderEval();
+    flashMsg(`「${msg.def.name}」を相手から受信しました`);
+  }
+}
+// カードの追加・編集が保存されたとき、接続中なら相手にも自動で送る
+function sPushCardIfConnected(kind, def){
+  if(sConn && sConn.open) sConn.send({type:'cardPush', kind, def});
+}
+
+function imgSrc(c, full){
+  return `data:image/${c.mime||'webp'};base64,${full ? (c.imgFull||c.img) : c.img}`;
+}
+
+function deckTotal(){
+  let t=0; deck.forEach(e=>t+=e.qty); return t;
+}
+
+function raceTokens(c){
+  return (c.race||'').split('/').map(s=>s.trim()).filter(Boolean);
+}
+
+function initFilters(){
+  const kindSel = document.getElementById('kindFilter');
+  const raceSel = document.getElementById('raceFilter');
+  const costSel = document.getElementById('costFilter');
+  kindSel.innerHTML = '<option value="">種類：すべて</option>';
+  raceSel.innerHTML = '<option value="">種族：すべて</option>';
+  costSel.innerHTML = '<option value="">コスト：すべて</option>';
+  const kinds = [...new Set(LIB.map(c=>c.kind))].sort();
+  const races = [...new Set(LIB.flatMap(raceTokens))].sort((a,b)=>a.localeCompare(b,'ja'));
+  const costs = [...new Set(LIB.map(c=>c.cost))].sort((a,b)=>{
+    const na = typeof a==='number'?a:9999, nb = typeof b==='number'?b:9999;
+    return na-nb;
+  });
+  kinds.forEach(k=>{ const o=document.createElement('option'); o.value=k; o.textContent=k; kindSel.appendChild(o); });
+  races.forEach(r=>{ const o=document.createElement('option'); o.value=r; o.textContent=r; raceSel.appendChild(o); });
+  costs.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; costSel.appendChild(o); });
+}
+
+function matchesFilters(c){
+  const q = document.getElementById('searchBox').value.trim();
+  const kind = document.getElementById('kindFilter').value;
+  const race = document.getElementById('raceFilter').value;
+  const cost = document.getElementById('costFilter').value;
+  const triggerOnly = document.getElementById('triggerFilter').checked;
+  if(kind && c.kind!==kind) return false;
+  if(race && !raceTokens(c).includes(race)) return false;
+  if(cost && String(c.cost)!==cost) return false;
+  if(triggerOnly && !c.isTrigger) return false;
+  if(q && !(c.name.includes(q) || (c.effect||'').includes(q))) return false;
+  return true;
+}
+
+let sortAsc = true;
+document.getElementById('sortDirBtn').addEventListener('click', ()=>{
+  sortAsc = !sortAsc;
+  document.getElementById('sortDirBtn').textContent = sortAsc ? '昇順 ▲' : '降順 ▼';
+  render();
+});
+
+function render(){
+  const grid = document.getElementById('grid');
+  const sortKey = document.getElementById('sortSel').value;
+  let list = LIB.filter(matchesFilters);
+  if(sealedMode) list = list.filter(c=>gachaCount(c.id)>0);
+  const RARITY_ORDER = { N:0, R:1, SR:2, UR:3 };
+  list = list.slice().sort((a,b)=>{
+    let diff;
+    if(sortKey==='name') diff = a.name.localeCompare(b.name,'ja');
+    else if(sortKey==='rarity') diff = (RARITY_ORDER[a.rarity||'N']||0) - (RARITY_ORDER[b.rarity||'N']||0);
+    else{
+      const av = typeof a[sortKey]==='number'?a[sortKey]:-1;
+      const bv = typeof b[sortKey]==='number'?b[sortKey]:-1;
+      diff = av-bv;
+    }
+    return sortAsc ? diff : -diff;
+  });
+  grid.innerHTML='';
+  document.getElementById('countStat').textContent = sealedMode
+    ? `封入構築：所持 ${list.length} 種類を表示`
+    : `全 ${LIB.length} 枚中 ${list.length} 枚表示`;
+  const frag = document.createDocumentFragment();
+  list.forEach(c=>{
+    const entry = deck.get(c.id);
+    const qty = entry ? entry.qty : 0;
+    const cap = sealedMode ? Math.min(MAX_PER_CARD, gachaCount(c.id)) : MAX_PER_CARD;
+    const maxed = qty>=cap || deckTotal()>=MAX_DECK;
+    const div = document.createElement('div');
+    div.className = 'card' + (qty>0?' selected':'') + (compare.has(c.id)?' compared':'') + (maxed && qty===0 ? ' maxed':'');
+    div.innerHTML = `
+      <button class="cmpBtn ${compare.has(c.id)?'on':''}" title="比較に追加">⚖${compare.has(c.id)?' ✓':''}</button>
+      <img src="${imgSrc(c)}" loading="lazy">
+      <button class="editBtn" title="編集">✎</button>
+      <button class="zoomBtn" title="拡大表示">🔍</button>
+      <div class="info">
+        <div class="name">${c.name}</div>
+        <div class="meta">${c.kind} / cost ${c.cost}${c.power?(' / P'+c.power):''} <span class="rarityTag r-${c.rarity||'N'}">${c.rarity||'N'}</span>${sealedMode?` <span style="color:var(--accent3);">所持${gachaCount(c.id)}</span>`:''}</div>
+      </div>
+      ${qty>0?`<div class="badge">×${qty}</div>`:''}
+    `;
+    div.addEventListener('click', (e)=>addToDeck(c));
+    div.querySelector('.cmpBtn').addEventListener('click', (e)=>{ e.stopPropagation(); toggleCompare(c); });
+    div.querySelector('.zoomBtn').addEventListener('click', (e)=>{ e.stopPropagation(); showModal(c); });
+    div.querySelector('.editBtn').addEventListener('click', (e)=>{ e.stopPropagation(); openEditModal(c); });
+    frag.appendChild(div);
+  });
+  grid.appendChild(frag);
+}
+
+function addToDeck(c){
+  const entry = deck.get(c.id) || {card:c, qty:0};
+  const cap = sealedMode ? Math.min(MAX_PER_CARD, gachaCount(c.id)) : MAX_PER_CARD;
+  if(sealedMode && gachaCount(c.id)===0){
+    flashMsg('封入構築モードでは、ガチャで出したカードしか入れられません');
+    return;
+  }
+  if(entry.qty>=cap){
+    flashMsg(sealedMode ? `「${c.name}」は所持数（${cap}枚）までしか入れられません` : `「${c.name}」は同じカードを4枚までしか入れられません`);
+    return;
+  }
+  if(deckTotal()>=MAX_DECK){
+    flashMsg('デッキは40枚までです');
+    return;
+  }
+  entry.qty++;
+  deck.set(c.id, entry);
+  render(); renderDeck(); renderEval();
+}
+
+function removeOneFromDeck(id){
+  const entry = deck.get(id);
+  if(!entry) return;
+  entry.qty--;
+  if(entry.qty<=0) deck.delete(id);
+  render(); renderDeck(); renderEval();
+}
+
+function addOneFromDeck(id){
+  const entry = deck.get(id);
+  if(!entry) return;
+  addToDeck(entry.card);
+}
+
+function flashMsg(msg){
+  let el = document.getElementById('flashMsg');
+  if(!el){
+    el = document.createElement('div');
+    el.id='flashMsg';
+    el.style.position='fixed'; el.style.top='16px'; el.style.left='50%';
+    el.style.transform='translateX(-50%)'; el.style.background='var(--accent2)';
+    el.style.color='#fff'; el.style.padding='8px 16px'; el.style.borderRadius='8px';
+    el.style.fontSize='13px'; el.style.zIndex=200;
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.display='block';
+  clearTimeout(el._t);
+  el._t = setTimeout(()=>{ el.style.display='none'; }, 1800);
+}
+
+function renderDeck(){
+  const listEl = document.getElementById('deckList');
+  listEl.innerHTML='';
+  const total = deckTotal();
+  document.getElementById('deckCount').textContent = total;
+  document.getElementById('downloadBtn').disabled = total===0;
+  document.getElementById('udonBtn').disabled = total===0;
+  const fill = document.getElementById('deckProgressFill');
+  fill.style.width = Math.min(100, total/MAX_DECK*100)+'%';
+  fill.classList.toggle('full', total>=MAX_DECK);
+  [...deck.values()].sort((a,b)=>a.card.name.localeCompare(b.card.name,'ja')).forEach(entry=>{
+    const c = entry.card;
+    const row = document.createElement('div');
+    row.className='deckItem';
+    row.innerHTML = `<img src="${imgSrc(c)}"><span>${c.name}</span>
+      <button class="qtybtn" data-act="minus">−</button>
+      <span class="qty">${entry.qty}</span>
+      <button class="qtybtn" data-act="plus">＋</button>
+      <button class="rmbtn" data-act="rm">✕</button>`;
+    row.querySelector('[data-act=minus]').addEventListener('click', ()=>removeOneFromDeck(c.id));
+    row.querySelector('[data-act=plus]').addEventListener('click', ()=>addOneFromDeck(c.id));
+    row.querySelector('[data-act=rm]').addEventListener('click', ()=>{ deck.delete(c.id); render(); renderDeck(); renderEval(); });
+    listEl.appendChild(row);
+  });
+}
+
+// ---------- デッキ評価（40枚想定） ----------
+const KEYWORDS = [
+  'スピードアタッカー','ブロッカー','T・ブレイカー','W・ブレイカー','パワーアタッカー',
+  '革命チェンジ','進化','シールド','破壊','マナ','召喚','タップ','アンタップ'
+];
+
+function expandCards(){
+  // qty分だけカードを展開した配列
+  const arr=[];
+  deck.forEach(e=>{ for(let i=0;i<e.qty;i++) arr.push(e.card); });
+  return arr;
+}
+
+function renderEval(){
+  const box = document.getElementById('evalContent');
+  const cards = expandCards();
+  if(cards.length===0){ box.innerHTML='デッキにカードを追加すると評価が表示されます'; return; }
+
+  const numCosts = cards.map(c=>c.cost).filter(v=>typeof v==='number');
+  const numPowers = cards.map(c=>c.power).filter(v=>typeof v==='number');
+  const avgCost = numCosts.length ? (numCosts.reduce((a,b)=>a+b,0)/numCosts.length) : 0;
+  const avgPower = numPowers.length ? (numPowers.reduce((a,b)=>a+b,0)/numPowers.length) : 0;
+  const kindCount = {};
+  cards.forEach(c=>{ kindCount[c.kind]=(kindCount[c.kind]||0)+1; });
+  const kindStr = Object.entries(kindCount).sort((a,b)=>b[1]-a[1])
+    .map(([k,v])=>`${k}×${v}`).join(' / ');
+
+  // コストカーブ
+  const buckets = Array(11).fill(0);
+  let nonNumeric = 0;
+  cards.forEach(c=>{
+    if(typeof c.cost==='number'){
+      const idx = c.cost>=10 ? 10 : Math.floor(c.cost);
+      buckets[idx]++;
+    } else nonNumeric++;
+  });
+  const maxB = Math.max(...buckets,1);
+  const curveHtml = buckets.map((n,i)=>{
+    const h = Math.round((n/maxB)*100);
+    const label = i===10 ? '10+' : i;
+    return `<div class="bar" style="height:${Math.max(h,n?8:2)}%"><b>${n||''}</b><span>${label}</span></div>`;
+  }).join('');
+
+  const total = cards.length;
+  const lowRatio = numCosts.length ? numCosts.filter(v=>v<=3).length/total : 0;
+
+  // 効果キーワード分析
+  const kwCount = {};
+  KEYWORDS.forEach(k=>kwCount[k]=0);
+  cards.forEach(c=>{
+    const eff = c.effect || '';
+    KEYWORDS.forEach(k=>{ if(eff.includes(k)) kwCount[k]++; });
+  });
+  const kwEntries = Object.entries(kwCount).filter(([k,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const maxKw = Math.max(...kwEntries.map(e=>e[1]),1);
+  const kwHtml = kwEntries.length ? kwEntries.map(([k,v])=>`
+      <div class="kwrow"><span>${k}</span><b>${v}枚</b></div>
+      <div class="kwbar"><i style="width:${Math.round(v/maxKw*100)}%"></i></div>
+  `).join('') : '<div style="color:var(--muted);">該当する効果キーワードなし</div>';
+
+  // 40枚基準の注意
+  const warnings = [];
+  if(total<40) warnings.push(`⚠ まだ${40-total}枚不足しています（残り枚数を埋めましょう）`);
+  if(total>=20){
+    if(lowRatio < 0.35) warnings.push('⚠ 低コスト帯(0〜3)が全体の35%未満。序盤の展開が弱くなる可能性があります。');
+    if(avgCost>=6) warnings.push('⚠ 平均コストが高め（6以上）。事故率が上がりやすい構成です。');
+    const spdCount = kwCount['スピードアタッカー']||0;
+    if(spdCount===0) warnings.push('⚠ スピードアタッカーを持つカードがありません。先攻での攻めが弱くなるかも。');
+    const blkCount = kwCount['ブロッカー']||0;
+    if(blkCount===0) warnings.push('⚠ ブロッカーがいません。受けの手段が薄いかもしれません。');
+  }
+
+  box.innerHTML = `
+    <div class="row"><span>枚数</span><b>${total} / 40</b></div>
+    <div class="row"><span>平均コスト</span><b>${avgCost.toFixed(1)}${nonNumeric?` (特殊${nonNumeric}枚除く)`:''}</b></div>
+    <div class="row"><span>平均パワー</span><b>${Math.round(avgPower).toLocaleString()}</b></div>
+    <div class="row"><span>低コスト比率(0-3)</span><b>${Math.round(lowRatio*100)}%</b></div>
+    <div class="row"><span>種類内訳</span><b style="text-align:right;">${kindStr}</b></div>
+    <div class="curve">${curveHtml}</div>
+    <div id="evalKeywords"><div style="color:var(--accent3);font-size:11px;margin-bottom:4px;">効果キーワード内訳</div>${kwHtml}</div>
+    ${warnings.length?`<div id="evalWarn">${warnings.join('<br>')}</div>`:''}
+  `;
+}
+
+// ---------- 比較機能 ----------
+function toggleCompare(c){
+  if(compare.has(c.id)) compare.delete(c.id);
+  else{
+    if(compare.size>=MAX_COMPARE){ flashMsg(`比較は最大${MAX_COMPARE}枚までです`); return; }
+    compare.set(c.id, c);
+  }
+  render();
+  renderCompareBar();
+}
+
+function renderCompareBar(){
+  const bar = document.getElementById('compareBar');
+  const thumbs = document.getElementById('compareThumbs');
+  if(compare.size===0){ bar.classList.remove('show'); return; }
+  bar.classList.add('show');
+  thumbs.innerHTML='';
+  compare.forEach(c=>{
+    const img = document.createElement('img');
+    img.src = `${imgSrc(c)}`;
+    thumbs.appendChild(img);
+  });
+}
+
+function openCompareModal(){
+  const cards = [...compare.values()];
+  if(cards.length<2){ flashMsg('比較するカードを2枚以上選んでください'); return; }
+  const table = document.getElementById('cmpTable');
+  const rows = [
+    ['画像', c=>`<img src="${imgSrc(c)}">`],
+    ['名前', c=>`<div class="cname">${c.name}</div>`],
+    ['種類', c=>c.kind],
+    ['種族', c=>c.race||'-'],
+    ['コスト', c=>c.cost],
+    ['パワー', c=>(typeof c.power==='number'?c.power.toLocaleString():(c.power||'-'))],
+    ['効果', c=>`<div style="white-space:pre-wrap;">${c.effect||'-'}</div>`],
+  ];
+  let html = '';
+  rows.forEach(([label, fn])=>{
+    html += `<tr><th>${label}</th>${cards.map(c=>`<td>${fn(c)}</td>`).join('')}</tr>`;
+  });
+  table.innerHTML = html;
+  document.getElementById('cmpModal').style.display='flex';
+}
+document.getElementById('compareOpenBtn').addEventListener('click', openCompareModal);
+document.getElementById('compareClearBtn').addEventListener('click', ()=>{ compare.clear(); render(); renderCompareBar(); });
+document.getElementById('cmpModalClose').addEventListener('click', ()=>{ document.getElementById('cmpModal').style.display='none'; });
+document.getElementById('cmpModal').addEventListener('click', (e)=>{ if(e.target.id==='cmpModal') e.target.style.display='none'; });
+
+// ---------- カード詳細モーダル ----------
+function showModal(c){
+  document.getElementById('modalImg').src = `${imgSrc(c)}`;
+  document.getElementById('modalName').textContent = c.name;
+  document.getElementById('modalMeta').textContent = `${c.kind} ／ 種族: ${c.race||'-'} ／ コスト: ${c.cost} ／ パワー: ${c.power||'-'}`;
+  document.getElementById('modalEffect').textContent = c.effect||'';
+  document.getElementById('modal').style.display='flex';
+}
+document.getElementById('modalClose').addEventListener('click', ()=>{ document.getElementById('modal').style.display='none'; });
+document.getElementById('modal').addEventListener('click', (e)=>{ if(e.target.id==='modal') e.target.style.display='none'; });
+
+['searchBox','kindFilter','raceFilter','costFilter','sortSel','triggerFilter'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', render);
+  document.getElementById(id).addEventListener('change', render);
+});
+
+document.getElementById('clearBtn').addEventListener('click', ()=>{
+  deck.clear(); render(); renderDeck(); renderEval();
+});
+
+// ---------- ダウンロード（原画質 imgFull を使用）----------
+document.getElementById('downloadBtn').addEventListener('click', async ()=>{
+  const btn = document.getElementById('downloadBtn');
+  btn.disabled = true; btn.textContent = '生成中...';
+  const zip = new JSZip();
+  const folder = zip.folder('deck_images');
+  let i=1;
+  for(const entry of deck.values()){
+    const c = entry.card;
+    const safe = c.name.replace(/[\\/:*?"<>|]/g,'_');
+    const suffix = entry.qty>1 ? `_x${entry.qty}` : '';
+    folder.file(`${String(i).padStart(2,'0')}_${safe}${suffix}.${c.mime||'webp'}`, c.imgFull||c.img, {base64:true});
+    i++;
+  }
+  const blob = await zip.generateAsync({type:'blob'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'deck_images.zip';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  btn.disabled = false; btn.textContent = '📦 画像フォルダをダウンロード（原画質）';
+});
+
+// ---------- ユドナリウム用データ出力（data.xml を直接生成、原画質）----------
+async function sha256Hex(base64){
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function escXml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+document.getElementById('udonBtn').addEventListener('click', async ()=>{
+  const btn = document.getElementById('udonBtn');
+  btn.disabled = true; btn.textContent = 'ハッシュ計算中...';
+  const zip = new JSZip();
+
+  // 裏面画像
+  const backHash = await sha256Hex(CARD_BACK);
+  zip.file(`${backHash}.jpg`, CARD_BACK, {base64:true});
+
+  // デッキの各カード（qty分展開）
+  const cardXmlList = [];
+  let n = 0;
+  for(const entry of deck.values()){
+    const c = entry.card;
+    const frontHash = await sha256Hex(c.imgFull||c.img);
+    if(!zip.file(`${frontHash}.${c.mime||'webp'}`)) zip.file(`${frontHash}.${c.mime||'webp'}`, c.imgFull||c.img, {base64:true});
+    for(let k=0;k<entry.qty;k++){
+      n++;
+      cardXmlList.push(
+`    <card state="0" rotate="0" owner="" zindex="0" location.name="table" location.x="0" location.y="0" posZ="0">
+      <data name="card">
+        <data name="image">
+          <data type="image" name="imageIdentifier"></data>
+          <data type="image" name="front">${frontHash}</data>
+          <data type="image" name="back">${backHash}</data>
+        </data>
+        <data name="common">
+          <data name="name">${escXml(c.name)}</data>
+          <data name="size">2</data>
+        </data>
+        <data name="detail"></data>
+      </data>
+    </card>`);
+    }
+  }
+
+  const xml =
+`<?xml version="1.0" encoding="UTF-8"?>
+<card-stack rotate="0" zindex="0" owner="" isShowTotal="true" location.name="table" location.x="0" location.y="0" posZ="0">
+  <data name="card-stack">
+    <data name="image">
+      <data type="image" name="imageIdentifier"></data>
+    </data>
+    <data name="common">
+      <data name="name">仮デッキ (${n}枚)</data>
+    </data>
+    <data name="detail"></data>
+  </data>
+  <node name="cardRoot">
+${cardXmlList.join('\n')}
+  </node>
+</card-stack>
+`;
+  zip.file('data.xml', xml);
+
+  const blob = await zip.generateAsync({type:'blob'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'udonarium_deck.zip';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  btn.disabled = false; btn.textContent = '🎲 ユドナリウム山札を出力（直接読込み用）';
+});
+
+// ---------- カード追加・編集モーダル ----------
+let editingId = null;      // null=新規追加, それ以外=編集中のid
+let pendingImage = null;   // {thumb, full, mime} 新しく選ばれた画像
+let pendingScript = [];    // 効果スクリプト（ミニルールエンジン）
+
+function fileToImageData(file){
+  return new Promise((resolve)=>{
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const fullB64 = reader.result.split(',')[1];
+      const img = new Image();
+      img.onload = ()=>{
+        const neww = 600;
+        const newh = Math.round(img.height * neww / img.width) || neww;
+        const canvas = document.createElement('canvas');
+        canvas.width = neww; canvas.height = newh;
+        canvas.getContext('2d').drawImage(img, 0, 0, neww, newh);
+        canvas.toBlob((blob)=>{
+          const r2 = new FileReader();
+          r2.onload = ()=>{
+            let mime = (file.type||'image/webp').split('/')[1] || 'webp';
+            if(mime==='jpg') mime='jpeg';
+            resolve({ thumb: r2.result.split(',')[1], full: fullB64, mime });
+          };
+          r2.readAsDataURL(blob);
+        }, 'image/webp', 0.85);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleFileSelect(file){
+  if(!file || !file.type.startsWith('image/')) return;
+  pendingImage = await fileToImageData(file);
+  const prev = document.getElementById('editPreview');
+  prev.src = `data:image/webp;base64,${pendingImage.thumb}`;
+  prev.style.display = 'block';
+}
+
+const dropZone = document.getElementById('editDropZone');
+const fileInput = document.getElementById('editFileInput');
+dropZone.addEventListener('click', ()=>fileInput.click());
+fileInput.addEventListener('change', (e)=>{ if(e.target.files[0]) handleFileSelect(e.target.files[0]); });
+dropZone.addEventListener('dragover', (e)=>{ e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', ()=>dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', (e)=>{
+  e.preventDefault(); dropZone.classList.remove('drag');
+  if(e.dataTransfer.files[0]) handleFileSelect(e.dataTransfer.files[0]);
+});
+
+function fillDatalist(id, values){
+  const dl = document.getElementById(id);
+  dl.innerHTML = '';
+  [...new Set(values)].filter(Boolean).sort().forEach(v=>{
+    const o = document.createElement('option'); o.value=v; dl.appendChild(o);
+  });
+}
+
+// ---------- 効果スクリプトのブロックエディタ（ミニルールエンジン） ----------
+const SCRIPT_TRIGGERS = {
+  onEnterBattle: 'このカードがバトルゾーンに出た時',
+  onTap: 'このカードがタップされた時',
+  onDestroyed: 'このカードが破壊された時',
+  onTurnStart: '自分のターンが始まった時（このカードが場にある間）',
+  onShieldBreak: 'このカードがシールドブレイクでめくれた時',
+};
+const SCRIPT_COND_TYPES = {
+  handCount: '自分の手札の枚数',
+  manaCount: '自分のマナゾーンの枚数',
+  battleCount: '自分のバトルゾーンの枚数',
+  oppShieldCount: '相手のシールドの枚数',
+  selfCost: 'このカード自身の召喚コスト',
+  selfPower: 'このカード自身のパワー',
+};
+const SCRIPT_ACTION_TYPES = {
+  draw: 'カードを[N]枚引く',
+  addShield: '山札の上からシールドに[N]枚加える',
+  discardHand: '手札の先頭から[N]枚捨てる',
+  untapAll: '自分の場のカードを全てアンタップする',
+  message: 'メッセージを表示する：[TEXT]',
+};
+
+function scriptOptions(obj, selected){
+  return Object.entries(obj).map(([k,v])=>`<option value="${k}" ${k===selected?'selected':''}>${v}</option>`).join('');
+}
+function renderScriptRules(){
+  const list = document.getElementById('scriptRulesList');
+  list.innerHTML = '';
+  pendingScript.forEach((rule, ri)=>{
+    const block = document.createElement('div');
+    block.className = 'ruleBlock';
+    block.innerHTML = `<button class="rmRuleBtn" data-ri="${ri}">削除</button>
+      <div class="scratchBlock hat">
+        もし　<select data-ri="${ri}" data-f="trigger">${scriptOptions(SCRIPT_TRIGGERS, rule.trigger)}</select>
+      </div>
+      <div class="condArea" data-ri="${ri}"></div>
+      <button class="addSubBtn" data-act="addCond" data-ri="${ri}">＋ 条件を追加（なくても実行されます）</button>
+      <div class="actArea" data-ri="${ri}"></div>
+      <button class="addSubBtn" data-act="addAct" data-ri="${ri}">＋ 実行内容を追加</button>
+    `;
+    const condArea = block.querySelector('.condArea');
+    (rule.conditions||[]).forEach((cond, ci)=>{
+      const row = document.createElement('div');
+      row.className = 'scratchBlock cond';
+      row.innerHTML = `もし　<select data-ri="${ri}" data-ci="${ci}" data-f="condType">${scriptOptions(SCRIPT_COND_TYPES, cond.type)}</select>
+        が　<select data-ri="${ri}" data-ci="${ci}" data-f="condOp">
+          <option value="gte" ${cond.op==='gte'?'selected':''}>以上</option>
+          <option value="lte" ${cond.op==='lte'?'selected':''}>以下</option>
+          <option value="eq" ${cond.op==='eq'?'selected':''}>ちょうど</option>
+        </select>
+        <input type="number" min="0" value="${cond.value||0}" data-ri="${ri}" data-ci="${ci}" data-f="condValue" style="width:50px;">
+        <button class="rmBlockBtn" data-act="rmCond" data-ri="${ri}" data-ci="${ci}">✕</button>`;
+      condArea.appendChild(row);
+    });
+    const actArea = block.querySelector('.actArea');
+    (rule.actions||[]).forEach((act, ai)=>{
+      const row = document.createElement('div');
+      row.className = 'scratchBlock act';
+      const isMsg = act.type==='message';
+      row.innerHTML = `実行：<select data-ri="${ri}" data-ai="${ai}" data-f="actType">${scriptOptions(SCRIPT_ACTION_TYPES, act.type)}</select>
+        ${isMsg
+          ? `<input type="text" value="${(act.text||'').replace(/"/g,'&quot;')}" data-ri="${ri}" data-ai="${ai}" data-f="actText" placeholder="表示する文言" style="width:140px;">`
+          : (act.type==='untapAll' ? '' : `<input type="number" min="1" value="${act.value||1}" data-ri="${ri}" data-ai="${ai}" data-f="actValue" style="width:50px;">`)}
+        <button class="rmBlockBtn" data-act="rmAct" data-ri="${ri}" data-ai="${ai}">✕</button>`;
+      actArea.appendChild(row);
+    });
+    list.appendChild(block);
+  });
+
+  list.querySelectorAll('select,input').forEach(el=>{
+    el.addEventListener('change', (e)=>{
+      const ri = Number(e.target.dataset.ri);
+      const rule = pendingScript[ri]; if(!rule) return;
+      const f = e.target.dataset.f;
+      if(f==='trigger') rule.trigger = e.target.value;
+      else if(f==='condType') rule.conditions[e.target.dataset.ci].type = e.target.value;
+      else if(f==='condOp') rule.conditions[e.target.dataset.ci].op = e.target.value;
+      else if(f==='condValue') rule.conditions[e.target.dataset.ci].value = Number(e.target.value);
+      else if(f==='actType'){ rule.actions[e.target.dataset.ai].type = e.target.value; renderScriptRules(); }
+      else if(f==='actValue') rule.actions[e.target.dataset.ai].value = Number(e.target.value);
+      else if(f==='actText') rule.actions[e.target.dataset.ai].text = e.target.value;
+    });
+  });
+  list.querySelectorAll('[data-act]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const ri = Number(btn.dataset.ri);
+      const rule = pendingScript[ri]; if(!rule) return;
+      const act = btn.dataset.act;
+      if(act==='addCond'){ rule.conditions = rule.conditions||[]; rule.conditions.push({type:'handCount', op:'gte', value:0}); }
+      else if(act==='addAct'){ rule.actions = rule.actions||[]; rule.actions.push({type:'draw', value:1}); }
+      else if(act==='rmCond') rule.conditions.splice(Number(btn.dataset.ci),1);
+      else if(act==='rmAct') rule.actions.splice(Number(btn.dataset.ai),1);
+      renderScriptRules();
+    });
+  });
+  list.querySelectorAll('.rmRuleBtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      pendingScript.splice(Number(btn.dataset.ri),1);
+      renderScriptRules();
+    });
+  });
+}
+document.getElementById('openScriptEditorBtn').addEventListener('click', ()=>{
+  renderScriptRules();
+  document.getElementById('scriptModal').classList.add('show');
+});
+document.getElementById('scriptModalClose').addEventListener('click', ()=>{
+  document.getElementById('scriptModal').classList.remove('show');
+  document.getElementById('scriptRuleCount').textContent = pendingScript.length;
+});
+document.getElementById('addRuleBtn').addEventListener('click', ()=>{
+  pendingScript.push({trigger:'onEnterBattle', conditions:[], actions:[]});
+  renderScriptRules();
+});
+
+function openEditModal(c){
+  editingId = c ? c.id : null;
+  pendingImage = null;
+  fillDatalist('kindOptions', LIB.map(x=>x.kind));
+  fillDatalist('raceOptions', LIB.map(x=>x.race));
+  document.getElementById('editModalTitle').textContent = c ? 'カードを編集' : 'カードを追加';
+  document.getElementById('editName').value = c ? c.name : '';
+  document.getElementById('editKind').value = c ? c.kind : '';
+  document.getElementById('editRace').value = c ? (c.race||'') : '';
+  document.getElementById('editCost').value = c ? c.cost : '';
+  document.getElementById('editPower').value = c ? (c.power||'') : '';
+  document.getElementById('editEffect').value = c ? (c.effect||'') : '';
+  document.getElementById('editRarity').value = c ? (c.rarity||'N') : 'N';
+  document.getElementById('editCardFx').value = c ? (c.cardFx||'none') : 'none';
+  document.getElementById('editCutIn').value = c ? (c.cutIn||'auto') : 'auto';
+  document.getElementById('editIsTrigger').checked = c ? !!c.isTrigger : false;
+  pendingScript = c && c.script ? JSON.parse(JSON.stringify(c.script)) : [];
+  document.getElementById('scriptRuleCount').textContent = pendingScript.length;
+  const prev = document.getElementById('editPreview');
+  if(c){ prev.src = imgSrc(c); prev.style.display='block'; }
+  else { prev.style.display='none'; prev.src=''; }
+  document.getElementById('editDelBtn').style.display = (c && c.id>=1000000) ? 'block' : 'none';
+  document.getElementById('editModal').style.display='flex';
+}
+document.getElementById('addCardBtn').addEventListener('click', ()=>openEditModal(null));
+document.getElementById('editModalClose').addEventListener('click', ()=>{ document.getElementById('editModal').style.display='none'; });
+document.getElementById('editModal').addEventListener('click', (e)=>{ if(e.target.id==='editModal') e.target.style.display='none'; });
+
+document.getElementById('editSaveBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('editName').value.trim();
+  if(!name){ flashMsg('名前を入力してください'); return; }
+  if(!editingId && !pendingImage){ flashMsg('画像を選択してください'); return; }
+  const costRaw = document.getElementById('editCost').value.trim();
+  const powerRaw = document.getElementById('editPower').value.trim();
+  const cost = costRaw!=='' && !isNaN(Number(costRaw)) ? Number(costRaw) : costRaw;
+  const power = powerRaw!=='' && !isNaN(Number(powerRaw)) ? Number(powerRaw) : powerRaw;
+  const fields = {
+    name,
+    kind: document.getElementById('editKind').value.trim() || 'クリーチャー',
+    race: document.getElementById('editRace').value.trim(),
+    cost, power,
+    rarity: document.getElementById('editRarity').value,
+    cardFx: document.getElementById('editCardFx').value,
+    cutIn: document.getElementById('editCutIn').value,
+    isTrigger: document.getElementById('editIsTrigger').checked,
+    script: pendingScript,
+    effect: document.getElementById('editEffect').value,
+  };
+  if(pendingImage){
+    fields.img = pendingImage.thumb;
+    fields.imgFull = pendingImage.full;
+    fields.mime = pendingImage.mime;
+  }
+
+  if(editingId===null){
+    // 新規追加
+    const id = nextCustomId++;
+    const newCard = { id, file:`custom_${id}`, ...fields };
+    customCards[id] = newCard;
+    await idbPut('custom', newCard);
+    sPushCardIfConnected('custom', newCard);
+  } else if(editingId>=1000000){
+    // 既存の追加カードを編集
+    const merged = { ...customCards[editingId], ...fields };
+    customCards[editingId] = merged;
+    await idbPut('custom', merged);
+    sPushCardIfConnected('custom', merged);
+  } else {
+    // 元データカードへの編集（上書き情報として保存）
+    const merged = { id: editingId, ...fields };
+    editOverrides[editingId] = merged;
+    await idbPut('edits', merged);
+    sPushCardIfConnected('edit', merged);
+  }
+  rebuildLib();
+  initFilters();
+  render(); renderDeck(); renderEval();
+  document.getElementById('editModal').style.display='none';
+});
+
+document.getElementById('editDelBtn').addEventListener('click', async ()=>{
+  if(editingId===null || editingId<1000000) return;
+  if(!confirm('このカードを削除しますか？')) return;
+  delete customCards[editingId];
+  await idbDelete('custom', editingId);
+  if(editOverrides[editingId]){ delete editOverrides[editingId]; await idbDelete('edits', editingId); }
+  deck.delete(editingId);
+  rebuildLib();
+  initFilters();
+  render(); renderDeck(); renderEval();
+  document.getElementById('editModal').style.display='none';
+});
+
+document.getElementById('evalToggle').addEventListener('click', ()=>{
+  const box = document.getElementById('evalBox');
+  box.classList.toggle('collapsed');
+  document.getElementById('evalArrow').textContent = box.classList.contains('collapsed') ? '▶' : '▼';
+});
+
+// ================= デッキの保存／読み込み（複数管理） =================
+document.getElementById('saveDeckBtn').addEventListener('click', async ()=>{
+  if(deck.size===0){ flashMsg('デッキが空です'); return; }
+  const name = prompt('デッキの名前を入力してください');
+  if(!name) return;
+  const cards = [...deck.values()].map(e=>({id:e.card.id, qty:e.qty}));
+  await idbPut('decks', {name, cards, savedAt: Date.now()});
+  await refreshSavedDeckSel();
+  flashMsg(`「${name}」として保存しました`);
+});
+async function refreshSavedDeckSel(){
+  const rows = await idbGetAll('decks');
+  const sel = document.getElementById('savedDeckSel');
+  sel.innerHTML = '<option value="">-- 保存済みデッキ --</option>';
+  rows.sort((a,b)=>b.savedAt-a.savedAt).forEach(d=>{
+    const o = document.createElement('option'); o.value=d.name; o.textContent = `${d.name}（${d.cards.reduce((s,c)=>s+c.qty,0)}枚）`;
+    sel.appendChild(o);
+  });
+}
+document.getElementById('loadDeckBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('savedDeckSel').value;
+  if(!name) return;
+  const rows = await idbGetAll('decks');
+  const d = rows.find(r=>r.name===name);
+  if(!d){ flashMsg('見つかりませんでした'); return; }
+  deck.clear();
+  d.cards.forEach(({id,qty})=>{
+    const c = LIB.find(x=>x.id===id);
+    if(c) deck.set(id, {card:c, qty});
+  });
+  render(); renderDeck(); renderEval();
+  flashMsg(`「${name}」を読み込みました`);
+});
+document.getElementById('deleteDeckBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('savedDeckSel').value;
+  if(!name) return;
+  if(!confirm(`「${name}」を削除しますか？`)) return;
+  await idbDelete('decks', name);
+  await refreshSavedDeckSel();
+});
+
+// ================= デッキ共有（共有コードの発行／読み込み） =================
+document.getElementById('shareDeckBtn').addEventListener('click', ()=>{
+  if(deck.size===0){ flashMsg('デッキが空です'); return; }
+  const cards = [];
+  const customDefs = [];
+  deck.forEach(e=>{
+    cards.push({id:e.card.id, qty:e.qty});
+    if(e.card.id>=1000000) customDefs.push(e.card);
+  });
+  const payload = {v:1, cards, customDefs};
+  const json = JSON.stringify(payload);
+  const code = btoa(unescape(encodeURIComponent(json)));
+  const out = document.getElementById('shareDeckOutput');
+  out.value = code;
+  out.style.display = 'block';
+  document.getElementById('shareCopyBtn').style.display = 'inline-block';
+});
+document.getElementById('shareCopyBtn').addEventListener('click', ()=>{
+  const out = document.getElementById('shareDeckOutput');
+  out.select();
+  navigator.clipboard.writeText(out.value).then(()=>flashMsg('コピーしました')).catch(()=>{
+    document.execCommand('copy'); flashMsg('コピーしました');
+  });
+});
+document.getElementById('importDeckBtn').addEventListener('click', async ()=>{
+  const code = document.getElementById('importDeckInput').value.trim();
+  if(!code){ flashMsg('コードを貼り付けてください'); return; }
+  let payload;
+  try{
+    const json = decodeURIComponent(escape(atob(code)));
+    payload = JSON.parse(json);
+  }catch(e){ flashMsg('コードの読み込みに失敗しました（コードが正しいか確認してください）'); return; }
+  const idMap = {};
+  for(const def of (payload.customDefs||[])){
+    const newId = nextCustomId++;
+    const newCard = {...def, id:newId};
+    customCards[newId] = newCard;
+    await idbPut('custom', newCard);
+    idMap[def.id] = newId;
+  }
+  rebuildLib();
+  deck.clear();
+  let missing = 0;
+  for(const {id, qty} of (payload.cards||[])){
+    const localId = idMap[id]!==undefined ? idMap[id] : id;
+    const c = LIB.find(x=>x.id===localId);
+    if(c) deck.set(localId, {card:c, qty});
+    else missing++;
+  }
+  initFilters();
+  render(); renderDeck(); renderEval();
+  document.getElementById('importDeckInput').value = '';
+  flashMsg(missing ? `デッキを読み込みました（${missing}種類は見つかりませんでした）` : 'デッキを読み込みました');
+});
+
+// ================= オンライン対戦 =================
+let bPeer, bConn, bMyReady=false, bOppReady=false;
+let bIsHost=false, bMyTurn=false;
+let bTurnIndex=1, bAmFirstPlayer=true;
+let mySleeve=null, mySleeveMime='webp', oppSleeve=null, oppSleeveMime='webp';
+let myPlaymat=null, myPlaymatMime='webp', oppPlaymat=null, oppPlaymatMime='webp';
+let bMy = { deck:[], hand:[], shields:[], mana:[], battle:[], graveyard:[], sumipe:[] };
+let bOpp = { deckCount:0, handCount:0, shieldCount:0, mana:[], battle:[], graveyard:[], sumipe:[] };
+let bSelected = null;
+let bPendingAttackIdx = null;
+function CM(id){ return LIB.find(c=>c.id===id); }
+function isRare(c){ return c && (c.rarity==='SR' || c.rarity==='UR'); }
+const SUMIPE_NAME_HINT = 'あなたのものだよ';
+
+document.getElementById('battleOpenBtn').addEventListener('click', ()=>{
+  document.getElementById('battleOverlay').classList.add('show');
+});
+document.getElementById('battleCloseBtn').addEventListener('click', ()=>{
+  document.getElementById('battleOverlay').classList.remove('show');
+});
+
+function bSetupConn(c){
+  bConn = c;
+  bConn.on('open', ()=>{
+    document.getElementById('connStatus').textContent = '接続しました！デッキを選んでください。';
+    showBattleDeckPick();
+  });
+  bConn.on('data', bHandleData);
+  bConn.on('close', ()=>{ document.getElementById('connStatus').textContent = '接続が切断されました。'; });
+}
+const ROOM_PREFIX = 'dm-cardbattle-';
+function bGenerateRoomCode(){ return String(Math.floor(1000+Math.random()*9000)); }
+function bTryCreateRoom(attemptsLeft){
+  const code = bGenerateRoomCode();
+  bPeer = new Peer(ROOM_PREFIX+code);
+  bPeer.on('open', ()=>{
+    document.getElementById('hostCodeArea').style.display='block';
+    document.getElementById('roomCodeText').textContent = code;
+    document.getElementById('connStatus').textContent = '相手の接続を待っています...';
+  });
+  bPeer.on('connection', c=>{ bIsHost=true; bSetupConn(c); });
+  bPeer.on('error', e=>{
+    if(e.type==='unavailable-id' && attemptsLeft>0){
+      bPeer.destroy();
+      bTryCreateRoom(attemptsLeft-1);
+    } else {
+      document.getElementById('connStatus').textContent = '接続エラー：'+e.type;
+    }
+  });
+}
+document.getElementById('createRoomBtn').addEventListener('click', ()=>{
+  document.getElementById('connStatus').textContent = '接続準備中...';
+  bTryCreateRoom(5);
+});
+document.getElementById('copyCodeBtn').addEventListener('click', ()=>{
+  navigator.clipboard.writeText(document.getElementById('roomCodeText').textContent).then(()=>{
+    document.getElementById('connStatus').textContent = 'コピーしました';
+  });
+});
+document.getElementById('joinRoomBtn').addEventListener('click', ()=>{
+  const code = document.getElementById('joinCodeInput').value.trim();
+  if(!code) return;
+  document.getElementById('connStatus').textContent = '接続中...';
+  bPeer = new Peer();
+  bPeer.on('open', ()=>{ bSetupConn(bPeer.connect(ROOM_PREFIX+code)); });
+  bPeer.on('error', e=>{ document.getElementById('connStatus').textContent = '接続エラー：'+e.type; });
+});
+function bSend(msg){ if(bConn && bConn.open) bConn.send(msg); }
+
+async function showBattleDeckPick(){
+  document.getElementById('battleHome').style.display='none';
+  document.getElementById('battleDeckPick').style.display='block';
+  document.getElementById('board').style.display='none';
+  const sel = document.getElementById('battleDeckSel');
+  sel.innerHTML='';
+  if(deck.size>0){
+    const o = document.createElement('option'); o.value='__current__'; o.textContent = `現在の仮デッキ（${deckTotal()}枚）`;
+    sel.appendChild(o);
+  }
+  const rows = await idbGetAll('decks');
+  rows.forEach(d=>{
+    const o = document.createElement('option'); o.value=d.name; o.textContent = `${d.name}（${d.cards.reduce((s,c)=>s+c.qty,0)}枚）`;
+    sel.appendChild(o);
+  });
+  document.getElementById('battleReadyBtn').disabled = false;
+  document.getElementById('readyStatus').textContent = '';
+  bMyReady = false; bOppReady = false;
+}
+async function bBuildDeckArray(){
+  const sel = document.getElementById('battleDeckSel').value;
+  let list = [];
+  if(sel==='__current__'){
+    deck.forEach(e=>{ for(let i=0;i<e.qty;i++) list.push(e.card.id); });
+  } else {
+    const rows = await idbGetAll('decks');
+    const d = rows.find(r=>r.name===sel);
+    if(d) d.cards.forEach(({id,qty})=>{ for(let i=0;i<qty;i++) list.push(id); });
+  }
+  return list;
+}
+function bShuffle(arr){ for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
+
+document.getElementById('battleReadyBtn').addEventListener('click', async ()=>{
+  const arr = await bBuildDeckArray();
+  if(arr.length!==40){ flashMsg('40枚のデッキを選んでください'); return; }
+  bMy = { deck: bShuffle(arr), hand:[], shields:[], mana:[], battle:[], graveyard:[], sumipe:[] };
+  // すみぺゾーン：該当カードがあれば開始時に取り出して表向きに置く
+  const sIdx = bMy.deck.findIndex(id=>{ const c=CM(id); return c && c.name.includes(SUMIPE_NAME_HINT); });
+  if(sIdx>=0) bMy.sumipe.push(bMy.deck.splice(sIdx,1)[0]);
+  bMyReady = true;
+  document.getElementById('battleReadyBtn').disabled = true;
+  document.getElementById('readyStatus').textContent = '準備完了。相手を待っています...';
+  bSend({type:'ready'});
+  bCheckBothReady();
+});
+function bCheckBothReady(){
+  if(bMyReady && bOppReady && bIsHost){
+    const hostFirst = Math.random() < 0.5;
+    bMyTurn = hostFirst;
+    bSend({type:'startGame', hostFirst});
+    bStartGame();
+  }
+}
+const FORCED_HAND_NAME = 'Wildest Flower 長月あおい';
+function bStartGame(){
+  document.getElementById('battleDeckPick').style.display='none';
+  document.getElementById('board').style.display='block';
+  bApplyLayout();
+  bTurnIndex = 1;
+  bAmFirstPlayer = bMyTurn;
+  // Wildest Flower 長月あおい：デッキに入っている枚数だけ、必ず最初の手札に加える（5枚のうちの一部として扱う）
+  const forcedIds = [];
+  for(let i=bMy.deck.length-1; i>=0; i--){
+    const c = CM(bMy.deck[i]);
+    if(c && c.name===FORCED_HAND_NAME) forcedIds.push(bMy.deck.splice(i,1)[0]);
+  }
+  bMy.shields = bMy.deck.splice(0,5);
+  const remainSlots = Math.max(0, 5 - forcedIds.length);
+  bMy.hand = bMy.deck.splice(0, remainSlots);
+  if(forcedIds.length){
+    bMy.hand.push(...forcedIds);
+    bLog(`「${FORCED_HAND_NAME}」を${forcedIds.length}枚、開始時の手札に加えました。`, 'self');
+  }
+  bLog('ゲームを開始しました。シールド5枚・手札5枚を用意しました。', 'self');
+  bUpdateTurnUI();
+  bApplyPlaymats();
+  bBroadcastCosmetics();
+  bBroadcastState();
+  bRenderAll();
+}
+
+// ---- 終了 ----
+document.getElementById('endGameBtn').addEventListener('click', ()=>{
+  if(!confirm('対戦を終了して、デッキ選択画面に戻りますか？')) return;
+  bSend({type:'endGame'});
+  bResetToDeckPick();
+});
+function bUpdateTurnUI(){
+  const bar = document.getElementById('topBars');
+  const txt = document.getElementById('turnText');
+  const btn = document.getElementById('endTurnBtn');
+  bar.classList.toggle('myTurn', bMyTurn);
+  bar.classList.toggle('oppTurn', !bMyTurn);
+  const round = Math.ceil(bTurnIndex/2);
+  const isFirstPlayerTurn = (bTurnIndex % 2 === 1);
+  const turnRoleLabel = isFirstPlayerTurn ? '先攻' : '後攻';
+  const whoLabel = bMyTurn ? 'あなたのターン' : '相手のターン';
+  txt.textContent = `${round}ターン目 ${turnRoleLabel}（${bMyTurn?'🟢':'🔴'} ${whoLabel}）`;
+  btn.disabled = !bMyTurn;
+  document.querySelector('.halfBoard.myHalf').classList.toggle('activeHalf', bMyTurn);
+  document.querySelector('.halfBoard.myHalf').classList.toggle('dimHalf', !bMyTurn);
+  document.querySelector('.halfBoard.oppHalf').classList.toggle('activeHalf', !bMyTurn);
+  document.querySelector('.halfBoard.oppHalf').classList.toggle('dimHalf', bMyTurn);
+}
+let bSideLayout = true;
+function bApplyLayout(){
+  document.getElementById('actionBarFixed').classList.toggle('sideLayout', bSideLayout);
+  document.getElementById('battleOverlay').classList.toggle('sideLayoutActive', bSideLayout);
+  document.getElementById('layoutToggleBtn').textContent = bSideLayout ? '⬇ 操作ボタンを下に表示' : '⬅ 操作ボタンを左に表示';
+  bUpdateShortcutBadges();
+}
+document.getElementById('layoutToggleBtn').addEventListener('click', ()=>{
+  bSideLayout = !bSideLayout;
+  bApplyLayout();
+});
+
+document.getElementById('endTurnBtn').addEventListener('click', ()=>{
+  if(!bMyTurn) return;
+  bMyTurn = false;
+  bTurnIndex++;
+  bSend({type:'turnEnd'});
+  bSendLog('ターンエンドしました');
+  bUpdateTurnUI();
+});
+
+function bResizeImageFile(file, maxWidth){
+  return new Promise((resolve)=>{
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const neww = Math.min(maxWidth, img.width);
+        const newh = Math.round(img.height * neww / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = neww; canvas.height = newh;
+        canvas.getContext('2d').drawImage(img, 0, 0, neww, newh);
+        canvas.toBlob((blob)=>{
+          const r2 = new FileReader();
+          r2.onload = ()=> resolve(r2.result.split(',')[1]);
+          r2.readAsDataURL(blob);
+        }, 'image/webp', 0.85);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function bApplyPlaymats(){
+  const myBox = document.querySelector('.halfBoard.myHalf');
+  const oppBox = document.querySelector('.halfBoard.oppHalf');
+  myBox.style.backgroundImage = myPlaymat ? `url(data:image/${myPlaymatMime};base64,${myPlaymat})` : 'none';
+  oppBox.style.backgroundImage = oppPlaymat ? `url(data:image/${oppPlaymatMime};base64,${oppPlaymat})` : 'none';
+  myBox.classList.toggle('hasPlaymat', !!myPlaymat);
+  oppBox.classList.toggle('hasPlaymat', !!oppPlaymat);
+}
+function bBroadcastCosmetics(){
+  if(mySleeve) bSend({type:'sleeve', img:mySleeve, mime:mySleeveMime});
+  if(myPlaymat) bSend({type:'playmat', img:myPlaymat, mime:myPlaymatMime});
+}
+
+document.getElementById('sleeveBtn').addEventListener('click', ()=> document.getElementById('sleeveInput').click());
+document.getElementById('sleeveInput').addEventListener('change', async (e)=>{
+  const file = e.target.files[0]; if(!file) return;
+  mySleeve = await bResizeImageFile(file, 300); mySleeveMime = 'webp';
+  bSend({type:'sleeve', img:mySleeve, mime:mySleeveMime});
+  bSendLog('スリーブ画像を設定しました');
+  bRenderAll();
+  e.target.value = '';
+});
+document.getElementById('sleeveResetBtn').addEventListener('click', ()=>{
+  mySleeve = null;
+  bSend({type:'sleeve', img:null, mime:'webp'});
+  bSendLog('スリーブをデフォルトに戻しました');
+  bRenderAll();
+});
+
+document.getElementById('playmatBtn').addEventListener('click', ()=> document.getElementById('playmatInput').click());
+document.getElementById('playmatInput').addEventListener('change', async (e)=>{
+  const file = e.target.files[0]; if(!file) return;
+  myPlaymat = await bResizeImageFile(file, 900); myPlaymatMime = 'webp';
+  bSend({type:'playmat', img:myPlaymat, mime:myPlaymatMime});
+  bSendLog('プレイマット画像を設定しました');
+  bApplyPlaymats();
+  e.target.value = '';
+});
+document.getElementById('playmatResetBtn').addEventListener('click', ()=>{
+  myPlaymat = null;
+  bSend({type:'playmat', img:null, mime:'webp'});
+  bSendLog('プレイマットをデフォルトに戻しました');
+  bApplyPlaymats();
+});
+
+function bResetToDeckPick(){
+  bMy = { deck:[], hand:[], shields:[], mana:[], battle:[], graveyard:[], sumipe:[] };
+  bOpp = { deckCount:0, handCount:0, shieldCount:0, mana:[], battle:[], graveyard:[], sumipe:[] };
+  bSelected = null;
+  bMyTurn = false;
+  document.getElementById('logPanel').innerHTML='';
+  document.getElementById('bgmText').textContent = '🎵 BGM：なし';
+  bStopBgmAudio();
+  showBattleDeckPick();
+}
+
+function bLog(text, who){
+  const p = document.createElement('div');
+  p.innerHTML = `<span class="${who==='self'?'selfLabel':who==='opp'?'oppLabel':''}">${who==='self'?'[自分] ':who==='opp'?'[相手] ':''}</span>${text}`;
+  const panel = document.getElementById('logPanel');
+  panel.appendChild(p); panel.scrollTop = panel.scrollHeight;
+}
+function bBroadcastState(){
+  bSend({type:'state', deckCount:bMy.deck.length, handCount:bMy.hand.length, shieldCount:bMy.shields.length,
+    mana:bMy.mana, battle:bMy.battle, graveyard:bMy.graveyard, sumipe:bMy.sumipe});
+}
+function bHandleData(msg){
+  if(msg.type==='ready'){ bOppReady=true; bCheckBothReady(); }
+  else if(msg.type==='state'){
+    bOpp.deckCount=msg.deckCount; bOpp.handCount=msg.handCount; bOpp.shieldCount=msg.shieldCount;
+    bOpp.mana=msg.mana; bOpp.battle=msg.battle; bOpp.graveyard=msg.graveyard; bOpp.sumipe=msg.sumipe||[];
+    bRenderOpp(); bRenderBattle();
+  } else if(msg.type==='log'){ bLog(msg.text,'opp'); }
+  else if(msg.type==='reveal'){ bShowCutIn(CM(msg.cardId), msg.label); }
+  else if(msg.type==='rareEnter'){ bShowCutIn(CM(msg.cardId), '登場！', true, msg.style); }
+  else if(msg.type==='bgm'){
+    document.getElementById('bgmText').textContent = msg.name ? `🎵 BGM：${msg.name}` : '🎵 BGM：なし';
+    bPlayBgmAudio(msg.audioKey!==undefined ? msg.audioKey : msg.name);
+  }
+  else if(msg.type==='endGame'){ bLog('相手が対戦を終了しました。', 'opp'); bResetToDeckPick(); }
+  else if(msg.type==='startGame'){
+    bMyTurn = !msg.hostFirst;
+    bStartGame();
+  }
+  else if(msg.type==='turnEnd'){
+    bMyTurn = true;
+    bTurnIndex++;
+    bLog('相手がターンエンドしました。あなたのターンです。', 'opp');
+    bUpdateTurnUI();
+    bRunTurnStartScripts();
+  }
+  else if(msg.type==='sleeve'){
+    oppSleeve = msg.img; oppSleeveMime = msg.mime || 'webp';
+    bRenderAll();
+  }
+  else if(msg.type==='playmat'){
+    oppPlaymat = msg.img; oppPlaymatMime = msg.mime || 'webp';
+    bApplyPlaymats();
+  }
+  else if(msg.type==='shieldTrigger'){ bShowCutIn(CM(msg.cardId), 'トリガー発動！', true); }
+  else if(msg.type==='deckOut'){
+    bLog('相手の山札がなくなりました。あなたの勝ちです！', 'opp');
+    bShowResult(true);
+  }
+  else if(msg.type==='directAttackRequest'){
+    const c = CM(msg.cardId);
+    document.getElementById('directAttackImg').src = imgSrc(c);
+    document.getElementById('directAttackName').textContent = c.name;
+    document.getElementById('directAttackModal').classList.add('show');
+    bShowCutIn(c, 'ダイレクトアタック！', true);
+  }
+  else if(msg.type==='directAttackResult'){
+    if(msg.agreed){ bShowResult(true); bSendLog('ダイレクトアタックが認められました。あなたの勝ちです！'); }
+    else{ bLog('相手はダイレクトアタックを認めませんでした。', 'opp'); }
+  }
+  else if(msg.type==='battleAttackShield'){
+    if(bMy.shields.length===0){
+      bLog(`「${msg.attackerName}」の攻撃を受けましたが、シールドがありません。`, 'opp');
+      return;
+    }
+    const id = bMy.shields.pop();
+    const c = CM(id);
+    bLog(`「${msg.attackerName}」の攻撃でシールドを1枚ブレイクしました（残り${bMy.shields.length}枚）`, 'opp');
+    bRunScript(c, 'onShieldBreak');
+    if(!c.isTrigger){
+      bMy.hand.push(id);
+      bBroadcastState(); bRenderAll();
+      return;
+    }
+    document.getElementById('shieldRevealImg').src = imgSrc(c);
+    document.getElementById('shieldRevealName').textContent = c.name;
+    document.getElementById('shieldRevealEffect').textContent = c.effect || '';
+    document.getElementById('shieldRevealModal').dataset.pendingId = id;
+    document.getElementById('shieldRevealModal').classList.add('show');
+    bBroadcastState();
+  }
+  else if(msg.type==='battleAttack'){
+    const defEntry = bMy.battle[msg.targetIdx];
+    if(!defEntry){ bSend({type:'battleResult', attackerDied:false, defenderDied:false, invalid:true}); return; }
+    const atkPower = CM(msg.attackerCardId).power || 0;
+    const defName = CM(defEntry.id).name;
+    const defPower = CM(defEntry.id).power || 0;
+    let defenderDied=false, attackerDied=false;
+    if(atkPower>defPower) defenderDied=true;
+    else if(atkPower<defPower) attackerDied=true;
+    else { defenderDied=true; attackerDied=true; }
+    if(defenderDied){
+      const dyingId = bPopBattleTop(msg.targetIdx);
+      if(dyingId!==undefined) bMy.graveyard.push(dyingId);
+    }
+    bLog(`「${CM(msg.attackerCardId).name}」の攻撃で「${defName}」が戦闘${attackerDied&&defenderDied?'（相打ち）':''}になりました`, 'opp');
+    bSend({type:'battleResult', attackerDied, defenderDied, defenderName:defName});
+    bBroadcastState(); bRenderAll();
+  }
+  else if(msg.type==='battleResult'){
+    const idx = bPendingAttackIdx; bPendingAttackIdx = null;
+    if(msg.invalid){ bSendLog('攻撃対象が見つかりませんでした'); return; }
+    if(msg.attackerDied && idx!==null && idx!==undefined){
+      const dyingId = bPopBattleTop(idx);
+      if(dyingId!==undefined) bMy.graveyard.push(dyingId);
+    }
+    let resultText;
+    if(msg.defenderDied && msg.attackerDied) resultText = '相打ちになりました';
+    else if(msg.defenderDied) resultText = `「${msg.defenderName}」を撃破しました！`;
+    else resultText = '攻撃したクリーチャーが返り討ちにあいました…';
+    bLog(resultText, 'self');
+    bBroadcastState(); bRenderAll();
+  }
+}
+function bSendLog(text){ bLog(text,'self'); bSend({type:'log', text}); }
+
+// ---- レンダリング ----
+function bEffectClass(c){
+  const fx = c && c.cardFx;
+  return (fx && fx!=='none') ? ` cardfx-${fx}` : '';
+}
+function bCardEl(id, tapped, zoneKey, idx){
+  const c = CM(id);
+  const div = document.createElement('div');
+  div.className = 'mcard' + (tapped?' tapped':'') + (bSelected && bSelected.zone===zoneKey && bSelected.index===idx ? ' selected':'') + bEffectClass(c);
+  div.innerHTML = `<img src="${imgSrc(c)}" title="${c.name}">`;
+  div.addEventListener('click', ()=>{
+    bSelected = (bSelected && bSelected.zone===zoneKey && bSelected.index===idx) ? null : {zone:zoneKey, index:idx};
+    bRenderAll();
+  });
+  if(['hand','graveyard','mana','sumipe'].includes(zoneKey)){
+    div.draggable = true;
+    div.addEventListener('dragstart', ()=>{ bDragSource = {zone:zoneKey, index:idx}; });
+  }
+  if(zoneKey==='mana'){
+    div.addEventListener('dblclick', (e)=>{
+      e.stopPropagation();
+      const item = bMy.mana[idx]; if(!item) return;
+      item.tapped = !item.tapped;
+      bSfxTap();
+      bSendLog(`「${CM(item.id).name}」を${item.tapped?'タップ':'アンタップ'}しました`);
+      bBroadcastState(); bRenderAll();
+      if(item.tapped) bRunScript(CM(item.id), 'onTap');
+    });
+  }
+  bAttachHoverPreview(div, c);
+  return div;
+}
+function bSleeveSrc(side){
+  if(side==='my' && mySleeve) return `data:image/${mySleeveMime};base64,${mySleeve}`;
+  if(side==='opp' && oppSleeve) return `data:image/${oppSleeveMime};base64,${oppSleeve}`;
+  return `data:image/${CARD_BACK_MIME};base64,${CARD_BACK}`;
+}
+function bBackEl(count, side){
+  const div = document.createElement('div');
+  div.className = 'backCard';
+  div.innerHTML = `<img src="${bSleeveSrc(side)}"><span class="cnt">${count}</span>`;
+  return div;
+}
+function bRenderMyZones(){
+  const deckEl = document.getElementById('myDeck'); deckEl.innerHTML='';
+  if(bMy.deck.length){ const b = bBackEl(bMy.deck.length, 'my'); b.style.cursor='pointer'; b.addEventListener('click', bDrawCard); deckEl.appendChild(b); }
+  document.getElementById('myDeckCount').textContent = ` (${bMy.deck.length})`;
+
+  const handEl = document.getElementById('myHand'); handEl.innerHTML='';
+  bMy.hand.forEach((id,i)=> handEl.appendChild(bCardEl(id,false,'hand',i)));
+
+  const shieldEl = document.getElementById('myShield'); shieldEl.innerHTML='';
+  bMy.shields.forEach(()=> shieldEl.appendChild(bBackEl('', 'my')));
+  document.getElementById('myShieldCount').textContent = ` (${bMy.shields.length})`;
+
+  const manaEl = document.getElementById('myMana'); manaEl.innerHTML='';
+  bMy.mana.forEach((m,i)=> manaEl.appendChild(bCardEl(m.id,m.tapped,'mana',i)));
+
+  const gyEl = document.getElementById('myGraveyard'); gyEl.innerHTML='';
+  bMy.graveyard.forEach((id,i)=> gyEl.appendChild(bCardEl(id,false,'graveyard',i)));
+  document.getElementById('myGyCount').textContent = ` (${bMy.graveyard.length})`;
+
+  const sumEl = document.getElementById('mySumipe'); sumEl.innerHTML='';
+  bMy.sumipe.forEach((id,i)=> sumEl.appendChild(bCardEl(id,false,'sumipe',i)));
+  document.getElementById('summonSumipeBtn').style.display = bMy.sumipe.length ? 'inline-block' : 'none';
+}
+function bRenderOpp(){
+  document.getElementById('oppDeck').innerHTML=''; document.getElementById('oppDeck').appendChild(bBackEl(bOpp.deckCount||0, 'opp'));
+  document.getElementById('oppHand').innerHTML=''; document.getElementById('oppHand').appendChild(bBackEl(bOpp.handCount||0, 'opp'));
+  const oppShieldEl = document.getElementById('oppShield'); oppShieldEl.innerHTML='';
+  for(let i=0;i<(bOpp.shieldCount||0);i++) oppShieldEl.appendChild(bBackEl('', 'opp'));
+  const manaEl = document.getElementById('oppMana'); manaEl.innerHTML='';
+  (bOpp.mana||[]).forEach(m=>{
+    const c = CM(m.id);
+    const div = document.createElement('div'); div.className='mcard'+(m.tapped?' tapped':'')+bEffectClass(c);
+    div.innerHTML = `<img src="${imgSrc(c)}">`; bAttachHoverPreview(div, c); manaEl.appendChild(div);
+  });
+  const gyEl = document.getElementById('oppGraveyard'); gyEl.innerHTML='';
+  (bOpp.graveyard||[]).forEach(id=>{
+    const c = CM(id);
+    const div = document.createElement('div'); div.className='mcard'+bEffectClass(c);
+    div.innerHTML = `<img src="${imgSrc(c)}">`; bAttachHoverPreview(div, c); gyEl.appendChild(div);
+  });
+  document.getElementById('oppGyCount').textContent = ` (${(bOpp.graveyard||[]).length})`;
+  const sumEl = document.getElementById('oppSumipe'); sumEl.innerHTML='';
+  (bOpp.sumipe||[]).forEach(id=>{
+    const c = CM(id);
+    const div = document.createElement('div'); div.className='mcard'+bEffectClass(c);
+    div.innerHTML = `<img src="${imgSrc(c)}">`; bAttachHoverPreview(div, c); sumEl.appendChild(div);
+  });
+}
+function bStackEl(entry, zoneKey, idx, interactive){
+  const ids = [...(entry.stack||[]), entry.id]; // 下から上の順（最後が現在表向きのカード）
+  const n = ids.length;
+  const wrap = document.createElement('div');
+  wrap.className = 'mcard stackWrap' + (entry.tapped?' tapped':'')
+    + (interactive && bSelected && bSelected.zone===zoneKey && bSelected.index===idx ? ' selected':'');
+  ids.forEach((id, i)=>{
+    const c = CM(id);
+    const img = document.createElement('img');
+    img.src = imgSrc(c);
+    img.title = c.name;
+    img.className = 'stackImg' + bEffectClass(c);
+    const off = (n-1-i)*6;
+    img.style.left = off+'px';
+    img.style.top = off+'px';
+    img.style.zIndex = i;
+    if(i<n-1) img.style.opacity = '.9';
+    wrap.appendChild(img);
+    if(i===n-1) bAttachHoverPreview(wrap, c);
+  });
+  if(interactive){
+    wrap.addEventListener('click', ()=>{
+      bSelected = (bSelected && bSelected.zone===zoneKey && bSelected.index===idx) ? null : {zone:zoneKey, index:idx};
+      bRenderAll();
+    });
+    wrap.addEventListener('dblclick', (e)=>{
+      e.stopPropagation();
+      entry.tapped = !entry.tapped;
+      bSfxTap();
+      bSendLog(`「${CM(entry.id).name}」を${entry.tapped?'タップ':'アンタップ'}しました`);
+      bBroadcastState(); bRenderAll();
+      if(entry.tapped) bRunScript(CM(entry.id), 'onTap');
+    });
+    wrap.draggable = true;
+    wrap.addEventListener('dragstart', (e)=>{ bDragSource = {zone:'battle', index:idx}; });
+    wrap.addEventListener('dragover', (e)=>{ e.preventDefault(); });
+    wrap.addEventListener('drop', (e)=>{
+      e.preventDefault(); e.stopPropagation();
+      bHandleBattleDrop(idx);
+    });
+  }
+  return wrap;
+}
+function bRenderBattle(){
+  const myBz = document.getElementById('myBattle'); myBz.innerHTML='';
+  bMy.battle.forEach((entry,i)=> myBz.appendChild(bStackEl(entry, 'battle', i, true)));
+  const oppBz = document.getElementById('oppBattle'); oppBz.innerHTML='';
+  (bOpp.battle||[]).forEach(entry=> oppBz.appendChild(bStackEl(entry, 'oppBattle', -1, false)));
+}
+// ---- 汎用ドラッグ&ドロップ（ゾーン間でカードを移動） ----
+let bDragSource = null;
+const ZONE_LABEL = {hand:'手札', mana:'マナゾーン', battle:'バトルゾーン', graveyard:'墓地', sumipe:'すみぺゾーン'};
+function bPlaceIntoZone(zone, id){
+  if(zone==='hand') bMy.hand.push(id);
+  else if(zone==='mana') bMy.mana.push({id, tapped:false});
+  else if(zone==='battle') bMy.battle.push({id, tapped:false, stack:[]});
+  else if(zone==='graveyard') bMy.graveyard.push(id);
+  else if(zone==='sumipe') bMy.sumipe.push(id);
+}
+function bMoveCardBetweenZones(fromZone, fromIndex, toZone){
+  if(fromZone===toZone) return;
+  let id;
+  if(fromZone==='battle') id = bPopBattleTop(fromIndex);
+  else {
+    const arr = bZoneArr(fromZone);
+    const item = arr.splice(fromIndex,1)[0]; if(item===undefined) return;
+    id = (item && item.id!==undefined) ? item.id : item;
+  }
+  if(id===undefined) return;
+  bPlaceIntoZone(toZone, id);
+  bSfxPlace();
+  bSendLog(`「${CM(id).name}」を${ZONE_LABEL[fromZone]}から${ZONE_LABEL[toZone]}に移動しました`);
+  bSelected=null; bBroadcastState(); bRenderAll();
+  if(toZone==='battle') bNotifyRareIfNeeded(id);
+}
+function bSetupDropZones(){
+  const myBz = document.getElementById('myBattle');
+  myBz.addEventListener('dragover', (e)=> e.preventDefault());
+  myBz.addEventListener('drop', (e)=>{
+    if(e.target!==myBz) return; // 個別カードのdropハンドラに任せる
+    bHandleBattleDrop(null, e.clientX);
+  });
+  const zones = {hand:'myHand', mana:'myMana', graveyard:'myGraveyard', sumipe:'mySumipe'};
+  for(const zoneName in zones){
+    const el = document.getElementById(zones[zoneName]);
+    el.addEventListener('dragover', (e)=> e.preventDefault());
+    el.addEventListener('drop', (e)=>{
+      e.preventDefault();
+      if(!bDragSource) return;
+      const src = bDragSource; bDragSource = null;
+      bMoveCardBetweenZones(src.zone, src.index, zoneName);
+    });
+  }
+}
+function bHandleBattleDrop(targetIdx, dropX){
+  if(!bDragSource) return;
+  const src = bDragSource; bDragSource = null;
+  if(targetIdx!==null){
+    // 既存のスタックに重ねる（進化）
+    const target = bMy.battle[targetIdx];
+    if(!target) return;
+    let newId;
+    if(src.zone==='battle'){
+      if(src.index===targetIdx) return;
+      const moved = bMy.battle.splice(src.index,1)[0];
+      if(!moved) return;
+      target.stack = target.stack||[];
+      target.stack.push(...(moved.stack||[]), moved.id);
+      bSelected=null; bBroadcastState(); bRenderAll();
+      bSendLog(`カードを重ねました（進化）`);
+      return;
+    } else if(src.zone==='mana'){
+      const item = bMy.mana.splice(src.index,1)[0]; if(!item) return; newId = item.id;
+    } else {
+      const arr = bZoneArr(src.zone);
+      const item = arr.splice(src.index,1)[0]; if(item===undefined) return;
+      newId = (item && item.id!==undefined) ? item.id : item;
+    }
+    if(newId===undefined) return;
+    target.stack = target.stack||[];
+    target.stack.push(target.id);
+    target.id = newId;
+    bSfxPlace();
+    bSendLog(`「${CM(newId).name}」を場のカードに重ねました（進化）`);
+    bSelected=null; bBroadcastState(); bRenderAll();
+    bNotifyRareIfNeeded(newId);
+  } else {
+    // 並べ替え、またはハンド/墓地/マナ/すみぺからの通常召喚
+    if(src.zone==='battle'){
+      const moved = bMy.battle.splice(src.index,1)[0];
+      if(!moved) return;
+      // ドロップX座標から挿入位置を計算
+      const stacks = [...document.querySelectorAll('#myBattle .stackWrap')];
+      let insertAt = bMy.battle.length;
+      for(let i=0;i<stacks.length;i++){
+        const rect = stacks[i].getBoundingClientRect();
+        if(dropX < rect.left + rect.width/2){ insertAt = i; break; }
+      }
+      bMy.battle.splice(insertAt, 0, moved);
+      bSendLog('バトルゾーンの並び順を変更しました');
+      bBroadcastState(); bRenderAll();
+    } else {
+      bMoveCardBetweenZones(src.zone, src.index, 'battle');
+    }
+  }
+}
+function bUpdateActionButtons(){
+  const s = bSelected;
+  const z = s ? s.zone : null;
+  document.getElementById('playManaBtn').disabled = !(z==='hand');
+  document.getElementById('playBattleBtn').disabled = !(z==='hand' || z==='graveyard');
+  document.getElementById('playShieldBtn').disabled = !(z==='hand');
+  document.getElementById('toHandBtn').disabled = !(z==='battle' || z==='graveyard' || z==='mana');
+  document.getElementById('tapBtn').disabled = !(z==='mana' || z==='battle');
+  document.getElementById('destroyBtn').disabled = !(z==='mana' || z==='battle' || z==='hand');
+  document.getElementById('revealBtn').disabled = !(z==='hand');
+  document.getElementById('toDeckTopBtn').disabled = !z;
+  document.getElementById('toDeckBottomBtn').disabled = !z;
+  const daBtn = document.getElementById('directAttackBtn');
+  const canDirect = (z==='battle' && (bOpp.shieldCount||0)===0);
+  daBtn.style.display = ((bOpp.shieldCount||0)===0) ? 'inline-block' : 'none';
+  daBtn.disabled = !canDirect;
+  const atkBtn = document.getElementById('attackBtn');
+  let canAttack = false;
+  if(z==='battle'){
+    const entry = bMy.battle[s.index];
+    canAttack = entry && !entry.tapped;
+  }
+  atkBtn.disabled = !canAttack;
+  let hintText = 'カードを選択すると操作が選べます';
+  if(s){
+    const arr = bZoneArr(s.zone);
+    const item = arr[s.index];
+    const id = (item && item.id!==undefined) ? item.id : item;
+    const c = id!==undefined ? CM(id) : null;
+    if(c) hintText = `選択中：${c.name}`;
+  }
+  document.getElementById('selHint').textContent = hintText;
+  bUpdateShortcutBadges();
+}
+function bUpdateShortcutBadges(){
+  document.querySelectorAll('#actionBarFixed .kbdNum').forEach(el=>el.remove());
+  const btns = [...document.querySelectorAll('#actionBarFixed button:not([disabled])')]
+    .filter(b=>b.offsetParent!==null);
+  btns.slice(0, SHORTCUT_KEYS.length).forEach((b,i)=>{
+    const span = document.createElement('span');
+    span.className = 'kbdNum';
+    span.textContent = SHORTCUT_KEYS[i].toUpperCase();
+    b.prepend(span);
+  });
+}
+function bZoneArr(zone){
+  if(zone==='hand') return bMy.hand;
+  if(zone==='mana') return bMy.mana;
+  if(zone==='battle') return bMy.battle;
+  if(zone==='graveyard') return bMy.graveyard;
+  if(zone==='sumipe') return bMy.sumipe;
+  return [];
+}
+function bRenderAll(){ bRenderMyZones(); bRenderOpp(); bRenderBattle(); bUpdateActionButtons(); }
+
+// ---- 効果音 ----
+// ---- 効果音（こちらで独自の音に差し替え可能） ----
+let customSfx = { draw:null, place:null, tap:null, destroy:null, shield:null };
+function bPlayCustomOrBeep(key, beepFn){
+  if(customSfx[key]){
+    if(!muted){
+      const audio = new Audio(`data:audio/mpeg;base64,${customSfx[key]}`);
+      audio.volume = 0.6;
+      audio.play().catch(()=>{});
+    }
+  } else {
+    beepFn();
+  }
+}
+function bSfxDraw(){ bPlayCustomOrBeep('draw', ()=>beep({freq:600, endFreq:900, duration:0.09, type:'triangle', gain:0.1})); }
+function bSfxPlace(){ bPlayCustomOrBeep('place', ()=>beep({freq:420, endFreq:260, duration:0.12, type:'sine', gain:0.11})); }
+function bSfxTap(){ bPlayCustomOrBeep('tap', ()=>beep({freq:300, duration:0.05, type:'square', gain:0.05})); }
+function bSfxDestroy(){ bPlayCustomOrBeep('destroy', ()=>beep({freq:200, endFreq:70, duration:0.22, type:'sawtooth', gain:0.12})); }
+function bSfxShield(){ bPlayCustomOrBeep('shield', ()=>{ beep({freq:700, duration:0.1, type:'triangle', gain:0.12}); beep({freq:900, duration:0.15, type:'triangle', gain:0.1, startTime:0.08}); }); }
+const SFX_LABELS = { draw:'山札を引く', place:'カードを置く', tap:'タップ/アンタップ', destroy:'破壊/墓地送り', shield:'シールド関連' };
+function bRefreshSfxModal(){
+  const list = document.getElementById('sfxList');
+  list.innerHTML = '';
+  for(const key in SFX_LABELS){
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:10px;';
+    row.innerHTML = `
+      <span style="flex:1;font-size:13px;">${SFX_LABELS[key]}${customSfx[key]?' <span style="color:var(--accent3);">（カスタム設定済み）</span>':''}</span>
+      <button class="sec-btn" style="width:auto;margin:0;padding:6px 10px;" data-act="upload" data-key="${key}">音を選ぶ</button>
+      <button class="sec-btn" style="width:auto;margin:0;padding:6px 10px;" data-act="test" data-key="${key}">試聴</button>
+      <button class="sec-btn" style="width:auto;margin:0;padding:6px 10px;" data-act="reset" data-key="${key}">既定に戻す</button>
+    `;
+    list.appendChild(row);
+  }
+  list.querySelectorAll('[data-act="upload"]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const key = b.dataset.key;
+      const input = document.createElement('input');
+      input.type = 'file'; input.accept = 'audio/*';
+      input.addEventListener('change', async ()=>{
+        const file = input.files[0]; if(!file) return;
+        const reader = new FileReader();
+        reader.onload = ()=>{
+          customSfx[key] = reader.result.split(',')[1];
+          bRefreshSfxModal();
+        };
+        reader.readAsDataURL(file);
+      });
+      input.click();
+    });
+  });
+  list.querySelectorAll('[data-act="test"]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const key = b.dataset.key;
+      const fn = {draw:bSfxDraw, place:bSfxPlace, tap:bSfxTap, destroy:bSfxDestroy, shield:bSfxShield}[key];
+      fn();
+    });
+  });
+  list.querySelectorAll('[data-act="reset"]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      customSfx[b.dataset.key] = null;
+      bRefreshSfxModal();
+    });
+  });
+}
+document.getElementById('sfxSettingsBtn').addEventListener('click', ()=>{
+  bRefreshSfxModal();
+  document.getElementById('sfxModal').classList.add('show');
+});
+document.getElementById('sfxModalClose').addEventListener('click', ()=>{
+  document.getElementById('sfxModal').classList.remove('show');
+});
+
+// ---- 勝敗結果表示 ----
+function bShowResult(win){
+  document.getElementById('resultText').textContent = win ? '🏆 WIN' : '💀 LOSE';
+  document.getElementById('resultText').style.color = win ? 'var(--accent3)' : 'var(--accent2)';
+  document.getElementById('resultOverlay').classList.add('show');
+}
+document.getElementById('resultContinueBtn').addEventListener('click', ()=>{
+  document.getElementById('resultOverlay').classList.remove('show');
+});
+document.getElementById('resultEndBtn').addEventListener('click', ()=>{
+  document.getElementById('resultOverlay').classList.remove('show');
+  bSend({type:'endGame'});
+  bResetToDeckPick();
+});
+
+// ---- カード移動アクション ----
+function bDrawCard(){
+  if(bMy.deck.length===0){
+    bSendLog('山札がなくなりました。あなたの負けです。');
+    bSend({type:'deckOut'});
+    bShowResult(false);
+    return;
+  }
+  bMy.hand.push(bMy.deck.shift());
+  bSfxDraw();
+  bSendLog('山札から1枚引きました');
+  bBroadcastState(); bRenderAll();
+}
+document.getElementById('drawBtn').addEventListener('click', bDrawCard);
+
+document.getElementById('deckShuffleBtn').addEventListener('click', ()=>{
+  bShuffle(bMy.deck);
+  bSendLog('山札をシャッフルしました');
+  bBroadcastState(); bRenderAll();
+});
+document.getElementById('deckTopToShieldBtn').addEventListener('click', ()=>{
+  if(bMy.deck.length===0){ alert('山札がありません'); return; }
+  bMy.shields.push(bMy.deck.shift());
+  bSfxShield();
+  bSendLog(`山札の1枚目をシールドに送りました（シールド${bMy.shields.length}枚）`);
+  bBroadcastState(); bRenderAll();
+});
+document.getElementById('untapAllBtn').addEventListener('click', ()=>{
+  let count = 0;
+  [...bMy.mana, ...bMy.battle].forEach(item=>{ if(item.tapped){ item.tapped=false; count++; } });
+  if(count===0){ flashMsg('タップされているカードがありません'); return; }
+  bSfxTap();
+  bSendLog(`マナゾーン・バトルゾーンのカードを一括アンタップしました（${count}枚）`);
+  bBroadcastState(); bRenderAll();
+});
+
+// ---------- 効果スクリプトの実行（ミニルールエンジン） ----------
+function bEvalCondition(cond, card){
+  let actual;
+  if(cond.type==='handCount') actual = bMy.hand.length;
+  else if(cond.type==='manaCount') actual = bMy.mana.length;
+  else if(cond.type==='battleCount') actual = bMy.battle.length;
+  else if(cond.type==='oppShieldCount') actual = bOpp.shieldCount||0;
+  else if(cond.type==='selfCost') actual = (typeof card.cost==='number') ? card.cost : -1;
+  else if(cond.type==='selfPower') actual = (typeof card.power==='number') ? card.power : -1;
+  else return true;
+  if(cond.op==='gte') return actual >= cond.value;
+  if(cond.op==='lte') return actual <= cond.value;
+  if(cond.op==='eq') return actual === cond.value;
+  return true;
+}
+function bRunAction(action, sourceName){
+  if(action.type==='draw'){
+    for(let i=0;i<(action.value||1);i++){ if(bMy.deck.length){ bMy.hand.push(bMy.deck.shift()); } }
+    bSendLog(`【${sourceName}の効果】カードを${action.value||1}枚引きました`);
+  } else if(action.type==='addShield'){
+    for(let i=0;i<(action.value||1);i++){ if(bMy.deck.length){ bMy.shields.push(bMy.deck.shift()); } }
+    bSendLog(`【${sourceName}の効果】シールドに${action.value||1}枚加えました`);
+  } else if(action.type==='discardHand'){
+    let n=0;
+    for(let i=0;i<(action.value||1);i++){ if(bMy.hand.length){ bMy.graveyard.push(bMy.hand.shift()); n++; } }
+    bSendLog(`【${sourceName}の効果】手札を${n}枚捨てました`);
+  } else if(action.type==='untapAll'){
+    [...bMy.mana, ...bMy.battle].forEach(item=>item.tapped=false);
+    bSendLog(`【${sourceName}の効果】自分の場のカードを全てアンタップしました`);
+  } else if(action.type==='message'){
+    bSendLog(`【${sourceName}の効果】${action.text||''}`);
+  }
+}
+function bRunScript(card, trigger){
+  if(!card || !card.script || !card.script.length) return;
+  let ran = false;
+  card.script.forEach(rule=>{
+    if(rule.trigger !== trigger) return;
+    const conds = rule.conditions||[];
+    if(!conds.every(c=>bEvalCondition(c, card))) return;
+    (rule.actions||[]).forEach(a=>bRunAction(a, card.name));
+    ran = true;
+  });
+  if(ran) bBroadcastState();
+  bRenderAll();
+}
+// 自分の場にいる全カードの「自分のターン開始時」スクリプトを実行
+function bRunTurnStartScripts(){
+  bMy.battle.forEach(entry=> bRunScript(CM(entry.id), 'onTurnStart'));
+}
+
+function bNotifyRareIfNeeded(id){
+  const c = CM(id);
+  bRunScript(c, 'onEnterBattle');
+  const setting = c.cutIn || 'auto';
+  if(setting==='none') return;
+  let style;
+  if(setting==='auto'){
+    if(!isRare(c)) return;
+    style = 'standard';
+  } else {
+    style = setting;
+  }
+  bSend({type:'rareEnter', cardId:id, style});
+  bShowCutIn(c, '登場！', true, style);
+}
+
+document.getElementById('playManaBtn').addEventListener('click', ()=>{
+  if(!bSelected || bSelected.zone!=='hand') return;
+  const id = bMy.hand.splice(bSelected.index,1)[0];
+  bMy.mana.push({id, tapped:false});
+  bSfxPlace();
+  bSendLog(`「${CM(id).name}」をマナゾーンに置きました`);
+  bSelected=null; bBroadcastState(); bRenderAll();
+});
+document.getElementById('playBattleBtn').addEventListener('click', ()=>{
+  if(!bSelected) return;
+  let id;
+  if(bSelected.zone==='hand') id = bMy.hand.splice(bSelected.index,1)[0];
+  else if(bSelected.zone==='graveyard') id = bMy.graveyard.splice(bSelected.index,1)[0];
+  else return;
+  bMy.battle.push({id, tapped:false, stack:[]});
+  bSfxPlace();
+  bSendLog(`「${CM(id).name}」をバトルゾーンに出しました`);
+  bSelected=null; bBroadcastState(); bRenderAll();
+  bNotifyRareIfNeeded(id);
+});
+document.getElementById('playShieldBtn').addEventListener('click', ()=>{
+  if(!bSelected || bSelected.zone!=='hand') return;
+  const id = bMy.hand.splice(bSelected.index,1)[0];
+  bMy.shields.push(id);
+  bSfxShield();
+  bSendLog(`手札からシールドゾーンに1枚置きました（シールド${bMy.shields.length}枚）`);
+  bSelected=null; bBroadcastState(); bRenderAll();
+});
+function bPopBattleTop(idx){
+  const entry = bMy.battle[idx];
+  if(!entry) return undefined;
+  const poppedId = entry.id;
+  if(entry.stack && entry.stack.length>0){
+    entry.id = entry.stack.pop();
+  } else {
+    bMy.battle.splice(idx,1);
+  }
+  return poppedId;
+}
+document.getElementById('toHandBtn').addEventListener('click', ()=>{
+  if(!bSelected || !['battle','graveyard','mana'].includes(bSelected.zone)) return;
+  let id;
+  if(bSelected.zone==='battle'){
+    id = bPopBattleTop(bSelected.index);
+  } else {
+    const arr = bZoneArr(bSelected.zone);
+    const item = arr.splice(bSelected.index,1)[0]; if(item===undefined) return;
+    id = (item && item.id!==undefined) ? item.id : item;
+  }
+  if(id===undefined) return;
+  bMy.hand.push(id);
+  bSfxPlace();
+  const zoneLabel = {battle:'バトルゾーン', graveyard:'墓地', mana:'マナゾーン'}[bSelected.zone];
+  bSendLog(`「${CM(id).name}」を${zoneLabel}から手札に戻しました`);
+  bSelected=null; bBroadcastState(); bRenderAll();
+});
+document.getElementById('tapBtn').addEventListener('click', ()=>{
+  if(!bSelected) return;
+  const arr = bSelected.zone==='mana' ? bMy.mana : bMy.battle;
+  const item = arr[bSelected.index]; if(!item) return;
+  item.tapped = !item.tapped;
+  bSfxTap();
+  bSendLog(`「${CM(item.id).name}」を${item.tapped?'タップ':'アンタップ'}しました`);
+  bBroadcastState(); bRenderAll();
+  if(item.tapped) bRunScript(CM(item.id), 'onTap');
+});
+document.getElementById('destroyBtn').addEventListener('click', ()=>{
+  if(!bSelected) return;
+  let id;
+  if(bSelected.zone==='hand'){ id = bMy.hand.splice(bSelected.index,1)[0]; }
+  else if(bSelected.zone==='mana'){ const item = bMy.mana.splice(bSelected.index,1)[0]; if(!item) return; id = item.id; }
+  else if(bSelected.zone==='battle'){ id = bPopBattleTop(bSelected.index); if(id===undefined) return; }
+  else return;
+  bMy.graveyard.push(id);
+  bSfxDestroy();
+  bSendLog(`「${CM(id).name}」を墓地に送りました`);
+  bSelected=null; bBroadcastState(); bRenderAll();
+  bRunScript(CM(id), 'onDestroyed');
+});
+document.getElementById('toDeckTopBtn').addEventListener('click', ()=>{
+  if(!bSelected) return;
+  let id;
+  if(bSelected.zone==='battle'){ id = bPopBattleTop(bSelected.index); if(id===undefined) return; }
+  else {
+    const arr = bZoneArr(bSelected.zone);
+    const item = arr.splice(bSelected.index,1)[0]; if(item===undefined) return;
+    id = (item && item.id!==undefined) ? item.id : item;
+  }
+  bMy.deck.unshift(id);
+  bSendLog(`「${CM(id).name}」を山札の一番上に戻しました`);
+  bSelected=null; bBroadcastState(); bRenderAll();
+});
+document.getElementById('toDeckBottomBtn').addEventListener('click', ()=>{
+  if(!bSelected) return;
+  let id;
+  if(bSelected.zone==='battle'){ id = bPopBattleTop(bSelected.index); if(id===undefined) return; }
+  else {
+    const arr = bZoneArr(bSelected.zone);
+    const item = arr.splice(bSelected.index,1)[0]; if(item===undefined) return;
+    id = (item && item.id!==undefined) ? item.id : item;
+  }
+  bMy.deck.push(id);
+  bSendLog(`「${CM(id).name}」を山札の一番下に戻しました`);
+  bSelected=null; bBroadcastState(); bRenderAll();
+});
+document.getElementById('revealBtn').addEventListener('click', ()=>{
+  if(!bSelected || bSelected.zone!=='hand') return;
+  const id = bMy.hand[bSelected.index]; const c = CM(id);
+  bSend({type:'reveal', cardId:id, label:'公開！'});
+  bShowCutIn(c, '公開！');
+  bSendLog(`「${c.name}」を相手に見せました`);
+});
+document.getElementById('summonSumipeBtn').addEventListener('click', ()=>{
+  if(bMy.sumipe.length===0) return;
+  const id = bMy.sumipe.pop();
+  bMy.battle.push({id, tapped:false, stack:[]});
+  bSendLog(`すみぺゾーンから「${CM(id).name}」をバトルゾーンに出しました`);
+  bBroadcastState(); bRenderAll();
+  bNotifyRareIfNeeded(id);
+});
+
+// ---- ダイレクトアタック ----
+document.getElementById('directAttackBtn').addEventListener('click', ()=>{
+  if(!bSelected || bSelected.zone!=='battle') return;
+  if((bOpp.shieldCount||0)!==0){ flashMsg('相手のシールドが残っています'); return; }
+  const item = bMy.battle[bSelected.index]; if(!item) return;
+  const c = CM(item.id);
+  bSend({type:'directAttackRequest', cardId:item.id});
+  bShowCutIn(c, 'ダイレクトアタック！', true);
+  bSendLog(`「${c.name}」でダイレクトアタックを仕掛けました。相手の返答を待っています。`);
+});
+document.getElementById('directAttackAgreeBtn').addEventListener('click', ()=>{
+  document.getElementById('directAttackModal').classList.remove('show');
+  bSend({type:'directAttackResult', agreed:true});
+  bSendLog('ダイレクトアタックを受け入れました。あなたの負けです。');
+  bShowResult(false);
+});
+document.getElementById('directAttackDenyBtn').addEventListener('click', ()=>{
+  document.getElementById('directAttackModal').classList.remove('show');
+  bSend({type:'directAttackResult', agreed:false});
+  bSendLog('ダイレクトアタックを認めませんでした。');
+});
+
+// ---- 攻撃（自動戦闘判定） ----
+document.getElementById('attackBtn').addEventListener('click', ()=>{
+  if(!bSelected || bSelected.zone!=='battle') return;
+  const entry = bMy.battle[bSelected.index]; if(!entry || entry.tapped) return;
+  const shieldBtn = document.getElementById('attackShieldBtn');
+  const shieldHint = document.getElementById('attackShieldHint');
+  const hasShields = (bOpp.shieldCount||0) > 0;
+  shieldBtn.style.display = hasShields ? 'block' : 'none';
+  shieldHint.style.display = hasShields ? 'none' : 'block';
+  const grid = document.getElementById('attackTargetGrid');
+  grid.innerHTML = '';
+  (bOpp.battle||[]).forEach((m, ti)=>{
+    const c = CM(m.id);
+    const div = document.createElement('div');
+    div.className = 'atCard';
+    div.innerHTML = `<img src="${imgSrc(c)}" title="${c.name}（パワー${c.power||0}）">`;
+    div.addEventListener('click', ()=>{
+      const attacker = bMy.battle[bSelected.index];
+      attacker.tapped = true;
+      bPendingAttackIdx = bSelected.index;
+      bSend({type:'battleAttack', attackerCardId:attacker.id, targetIdx:ti});
+      bSendLog(`「${CM(attacker.id).name}」で相手の「${c.name}」に攻撃しました。結果を待っています。`);
+      document.getElementById('attackTargetModal').classList.remove('show');
+      bSelected = null; bBroadcastState(); bRenderAll();
+    });
+    grid.appendChild(div);
+  });
+  document.getElementById('attackTargetModal').classList.add('show');
+});
+document.getElementById('attackTargetClose').addEventListener('click', ()=>{
+  document.getElementById('attackTargetModal').classList.remove('show');
+});
+document.getElementById('attackShieldBtn').addEventListener('click', ()=>{
+  if(!bSelected || bSelected.zone!=='battle') return;
+  if((bOpp.shieldCount||0)===0) return;
+  const attacker = bMy.battle[bSelected.index]; if(!attacker) return;
+  attacker.tapped = true;
+  bSend({type:'battleAttackShield', attackerName: CM(attacker.id).name});
+  bSendLog(`「${CM(attacker.id).name}」で相手のシールドを攻撃しました`);
+  document.getElementById('attackTargetModal').classList.remove('show');
+  bSelected = null; bBroadcastState(); bRenderAll();
+});
+
+// ---- シールドブレイク（自分だけが中身を確認し、トリガーか手札かを選ぶ） ----
+document.getElementById('breakShieldBtn').addEventListener('click', ()=>{
+  if(bMy.shields.length===0){ alert('シールドがありません'); return; }
+  const id = bMy.shields.pop();
+  const c = CM(id);
+  bSendLog(`シールドを1枚ブレイクしました（残り${bMy.shields.length}枚）`);
+  bRunScript(c, 'onShieldBreak');
+  if(!c.isTrigger){
+    bMy.hand.push(id);
+    bBroadcastState(); bRenderAll();
+    return;
+  }
+  document.getElementById('shieldRevealImg').src = imgSrc(c);
+  document.getElementById('shieldRevealName').textContent = c.name;
+  document.getElementById('shieldRevealEffect').textContent = c.effect || '';
+  document.getElementById('shieldRevealModal').dataset.pendingId = id;
+  document.getElementById('shieldRevealModal').classList.add('show');
+  bBroadcastState();
+});
+document.getElementById('shieldToBattleBtn').addEventListener('click', ()=>{
+  const id = Number(document.getElementById('shieldRevealModal').dataset.pendingId);
+  const c = CM(id);
+  bMy.battle.push({id, tapped:false, stack:[]});
+  document.getElementById('shieldRevealModal').classList.remove('show');
+  bSendLog(`ブレイクしたシールドをトリガーとしてバトルゾーンに出しました`);
+  bSend({type:'shieldTrigger', cardId:id});
+  bShowCutIn(c, 'トリガー発動！', true);
+  bBroadcastState(); bRenderAll();
+  if(isRare(c)) bSend({type:'rareEnter', cardId:id});
+});
+document.getElementById('shieldToHandBtn').addEventListener('click', ()=>{
+  const id = Number(document.getElementById('shieldRevealModal').dataset.pendingId);
+  bMy.hand.push(id);
+  document.getElementById('shieldRevealModal').classList.remove('show');
+  bSendLog(`ブレイクしたシールドを手札に加えました`);
+  bBroadcastState(); bRenderAll();
+});
+
+// ---- 山札サーチ（全部見て1枚選ぶ） ----
+document.getElementById('deckSearchBtn').addEventListener('click', ()=>{
+  const modal = document.getElementById('deckSearchModal');
+  const grid = document.getElementById('deckSearchGrid');
+  document.getElementById('deckSearchTitle').textContent = '🔍 山札をサーチ（自分だけに見えています）';
+  document.getElementById('deckSearchHint').textContent = '1枚選んで手札に加えます。選んだあと山札はシャッフルされます。';
+  grid.innerHTML='';
+  bMy.deck.forEach((id,i)=>{
+    const c = CM(id);
+    const div = document.createElement('div'); div.className='dsCard';
+    div.innerHTML = `<img src="${imgSrc(c)}" title="${c.name}">`;
+    div.addEventListener('click', ()=>{
+      bMy.deck.splice(i,1);
+      bMy.hand.push(id);
+      bShuffle(bMy.deck);
+      bSendLog('山札をサーチして1枚手札に加えました');
+      modal.classList.remove('show');
+      bBroadcastState(); bRenderAll();
+    });
+    bAttachHoverPreview(div, c);
+    grid.appendChild(div);
+  });
+  modal.classList.add('show');
+});
+
+// ---- 山札の上からN枚見る／見せる ----
+document.getElementById('deckLookBtn').addEventListener('click', ()=>{
+  const nStr = prompt('山札の上から何枚見ますか？');
+  if(!nStr) return;
+  const n = Math.max(1, Math.min(bMy.deck.length, parseInt(nStr,10)||0));
+  if(n===0) return;
+  const showOpp = confirm('相手にも見せますか？（OK=見せる／キャンセル=自分だけ）');
+  const picked = bMy.deck.splice(0, n);
+  const modal = document.getElementById('deckSearchModal');
+  const grid = document.getElementById('deckSearchGrid');
+  document.getElementById('deckSearchTitle').textContent = `👁 山札の上から${n}枚（${showOpp?'相手にも公開':'自分だけ'}）`;
+  document.getElementById('deckSearchHint').textContent = '1枚ずつ、置きたいゾーンのボタンを押してください。';
+  grid.innerHTML='';
+  const remaining = [...picked];
+  function renderLook(){
+    grid.innerHTML='';
+    if(remaining.length===0){ modal.classList.remove('show'); bBroadcastState(); bRenderAll(); return; }
+    remaining.forEach((id,i)=>{
+      const c = CM(id);
+      const wrap = document.createElement('div'); wrap.style.gridColumn='1 / -1';
+      wrap.style.display='flex'; wrap.style.gap='10px'; wrap.style.alignItems='center';
+      wrap.style.borderBottom='1px solid var(--border)'; wrap.style.paddingBottom='8px'; wrap.style.marginBottom='8px';
+      wrap.innerHTML = `<img src="${imgSrc(c)}" style="width:70px;border-radius:6px;">
+        <div style="flex:1;">
+          <div style="font-weight:bold;font-size:13px;margin-bottom:6px;">${c.name}</div>
+          <div class="lookBtns" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+        </div>`;
+      const btnDefs = [
+        ['手札へ', ()=>{ bMy.hand.push(id); bSendLog(`山札から見たカードを手札に加えました`); }],
+        ['マナへ', ()=>{ bMy.mana.push({id,tapped:false}); bSendLog(`山札から見たカードをマナゾーンに置きました`); }],
+        ['バトルへ', ()=>{ bMy.battle.push({id, tapped:false, stack:[]}); bSendLog(`山札から見たカードをバトルゾーンに出しました`); bNotifyRareIfNeeded(id); }],
+        ['墓地へ', ()=>{ bMy.graveyard.push(id); bSendLog(`山札から見たカードを墓地に送りました`); }],
+        ['山札の上に戻す', ()=>{ bMy.deck.unshift(id); bSendLog(`見たカードを山札の一番上に戻しました`); }],
+        ['山札の下に戻す', ()=>{ bMy.deck.push(id); bSendLog(`見たカードを山札の一番下に戻しました`); }],
+      ];
+      const btnHolder = wrap.querySelector('.lookBtns');
+      btnDefs.forEach(([label, fn])=>{
+        const b = document.createElement('button'); b.className='sec-btn'; b.style.width='auto'; b.style.margin='0';
+        b.style.padding='6px 10px'; b.textContent=label;
+        b.addEventListener('click', ()=>{
+          fn();
+          if(showOpp) bSend({type:'reveal', cardId:id, label:'公開！'});
+          remaining.splice(i,1);
+          renderLook();
+        });
+        btnHolder.appendChild(b);
+      });
+      grid.appendChild(wrap);
+    });
+  }
+  renderLook();
+  modal.classList.add('show');
+});
+document.getElementById('deckSearchClose').addEventListener('click', ()=>{
+  document.getElementById('deckSearchModal').classList.remove('show');
+  bBroadcastState(); bRenderAll();
+});
+
+// ---- BGM ----
+function bPlayBgmAudio(name){
+  bStopBgmAudio();
+  if(!name) return;
+  let key = null;
+  for(const k in BGM_TRACKS){ if(name.includes(k) || k.includes(name)) { key = k; break; } }
+  if(!key) return;
+  const audio = new Audio(`data:audio/mpeg;base64,${BGM_TRACKS[key]}`);
+  audio.loop = true;
+  audio.volume = (document.getElementById('bgmVolume').value||50) / 100;
+  audio.play().catch(()=>{});
+  window._bgmAudio = audio;
+}
+function bStopBgmAudio(){
+  if(window._bgmAudio){ window._bgmAudio.pause(); window._bgmAudio = null; }
+}
+document.getElementById('bgmVolume').addEventListener('input', (e)=>{
+  if(window._bgmAudio) window._bgmAudio.volume = e.target.value/100;
+});
+document.getElementById('bgmSelect').addEventListener('change', (e)=>{
+  let val = e.target.value;
+  if(!val){ return; }
+  let name, audioKey;
+  if(val==='__custom__'){
+    name = prompt('BGMの曲名を入力してください');
+    if(name===null){ e.target.value=''; return; }
+    audioKey = name;
+  } else {
+    name = e.target.options[e.target.selectedIndex].textContent;
+    audioKey = val; // プルダウンのvalueは装飾記号なしの正確なキー
+  }
+  document.getElementById('bgmText').textContent = name ? `🎵 BGM：${name}` : '🎵 BGM：なし';
+  bSend({type:'bgm', name, audioKey});
+  bPlayBgmAudio(audioKey);
+  bSendLog(`BGMを「${name}」に変更しました`);
+  e.target.value = '';
+});
+document.getElementById('bgmClearBtn').addEventListener('click', ()=>{
+  document.getElementById('bgmText').textContent = '🎵 BGM：なし';
+  bSend({type:'bgm', name:''});
+  bStopBgmAudio();
+  bSendLog('BGMを止めました');
+});
+
+// ---- カットイン ----
+function bShowCutIn(c, label, rare, style){
+  style = style || 'standard';
+  const layer = document.getElementById('battleCutIn');
+  const img = document.getElementById('cutInImg');
+  img.src = imgSrc(c);
+  img.style.boxShadow = rare ? (c.rarity==='UR' ? '0 0 60px 18px rgba(217,119,6,.9)' : '0 0 50px 14px rgba(124,58,237,.85)') : '0 0 40px 10px rgba(255,255,255,.4)';
+  document.getElementById('cutInTxt').textContent = `${rare?(c.rarity+'！ '):''}${label} ${c.name}`;
+  layer.className = 'style-'+style;
+  layer.classList.add('show');
+  setTimeout(()=>layer.classList.remove('show'), rare?2200:1800);
+}
+document.getElementById('battleCutIn').addEventListener('click', ()=>{ document.getElementById('battleCutIn').classList.remove('show'); });
+
+// ---- ホバープレビュー（画像＋効果を大きく表示） ----
+function bAttachHoverPreview(el, c){
+  if(!c) return;
+  el.addEventListener('mouseenter', ()=>{
+    const hp = document.getElementById('hoverPreview');
+    document.getElementById('hoverPreviewImg').src = imgSrc(c);
+    document.getElementById('hoverPreviewName').textContent = c.name;
+    document.getElementById('hoverPreviewMeta').textContent = `${c.kind} ／ 種族:${c.race||'-'} ／ コスト:${c.cost} ／ パワー:${c.power||'-'}`;
+    document.getElementById('hoverPreviewEffect').textContent = c.effect || '';
+    const rect = el.getBoundingClientRect();
+    const isRightHalf = (rect.left + rect.width/2) > window.innerWidth/2;
+    if(isRightHalf){
+      const sidebarActive = document.getElementById('actionBarFixed').classList.contains('sideLayout')
+        && window.innerWidth > 900;
+      hp.style.right = 'auto';
+      hp.style.left = sidebarActive ? '246px' : '16px';
+    } else {
+      hp.style.left = 'auto';
+      hp.style.right = '16px';
+    }
+    hp.classList.add('show');
+  });
+  el.addEventListener('mouseleave', ()=>{ document.getElementById('hoverPreview').classList.remove('show'); });
+}
+
+// ---- キー操作（数字1〜9、足りない分はqwer...で割り当て／矢印キーで選択カードを変更） ----
+const SHORTCUT_KEYS = ['1','2','3','4','5','6','7','8','9','q','w','e','r','t','y','u','i','o','p','a','s','d','f','g','h','j','k','l'];
+const ZONE_ORDER = ['hand','mana','battle','graveyard','sumipe'];
+document.addEventListener('keydown', (e)=>{
+  if(!document.getElementById('battleOverlay').classList.contains('show')) return;
+  if(document.getElementById('board').style.display==='none') return;
+  if(e.target.tagName==='INPUT' || e.target.tagName==='TEXTAREA' || e.target.tagName==='SELECT') return;
+  if(e.key==='Enter'){
+    if(bMyTurn) document.getElementById('endTurnBtn').click();
+    return;
+  }
+  if(e.key===' ' || e.code==='Space'){
+    e.preventDefault();
+    document.getElementById('drawBtn').click();
+    return;
+  }
+  if(['ArrowLeft','ArrowRight'].includes(e.key)){
+    e.preventDefault();
+    if(!bSelected){
+      for(const z of ZONE_ORDER){ if(bZoneArr(z).length){ bSelected = {zone:z, index:0}; break; } }
+    } else {
+      const arr = bZoneArr(bSelected.zone);
+      if(arr.length){
+        let idx = bSelected.index + (e.key==='ArrowRight'?1:-1);
+        idx = Math.max(0, Math.min(arr.length-1, idx));
+        bSelected = {zone:bSelected.zone, index:idx};
+      }
+    }
+    bRenderAll();
+    return;
+  }
+  if(['ArrowUp','ArrowDown'].includes(e.key)){
+    e.preventDefault();
+    const curZoneIdx = bSelected ? ZONE_ORDER.indexOf(bSelected.zone) : -1;
+    const dir = e.key==='ArrowDown' ? 1 : -1;
+    for(let i=1;i<=ZONE_ORDER.length;i++){
+      const z = ZONE_ORDER[(curZoneIdx + dir*i + ZONE_ORDER.length*2) % ZONE_ORDER.length];
+      if(bZoneArr(z).length){ bSelected = {zone:z, index:0}; bRenderAll(); break; }
+    }
+    return;
+  }
+  const idx = SHORTCUT_KEYS.indexOf(e.key.toLowerCase());
+  if(idx===-1) return;
+  const btns = [...document.querySelectorAll('#actionBarFixed button:not([disabled])')]
+    .filter(b=>b.offsetParent!==null);
+  const btn = btns[idx];
+  if(btn) btn.click();
+});
+async function init(){
+  document.getElementById('packImg').src = `data:image/webp;base64,${PACK_IMAGE}`;
+  await loadUserData();
+  initFilters();
+  render();
+  renderDeck();
+  renderEval();
+  refreshSavedDeckSel();
+  bSetupDropZones();
+}
+init();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
