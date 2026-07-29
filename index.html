@@ -275,7 +275,6 @@
   .stackWrap .stackImg{position:absolute;width:100%;border-radius:5px;display:block;border:2px solid transparent;}
   .stackWrap.selected .stackImg:last-child{border-color:var(--accent3);}
   .stackWrap.tapped .stackImg:last-child{transform:rotate(90deg);}
-
   /* 表向きカードのエフェクト */
   .cardfx-glow img{box-shadow:0 0 10px 4px rgba(255,255,255,.75);}
   .cardfx-pulse img{animation:cardfxPulse 1.6s ease-in-out infinite;}
@@ -365,26 +364,6 @@
   #attackTargetGrid .atCard img{width:100%;display:block;}
   #sfxModal .box{background:var(--panel);border-radius:12px;padding:20px;max-width:480px;width:92%;position:relative;}
 
-  #scriptModal{display:none;position:fixed;inset:0;z-index:460;background:rgba(0,0,0,.85);
-    align-items:center;justify-content:center;}
-  #scriptModal.show{display:flex;}
-  #scriptModal .box{background:var(--panel);border-radius:12px;padding:20px;max-width:640px;width:94%;
-    max-height:88vh;overflow-y:auto;position:relative;}
-  .ruleBlock{background:#1a1c24;border-radius:10px;padding:10px;margin-bottom:14px;border:1px solid var(--border);}
-  .scratchBlock{border-radius:8px;padding:8px 12px;margin-bottom:6px;color:#fff;font-size:13px;
-    display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
-  .scratchBlock.hat{background:#e8a33d;border-radius:14px 14px 8px 8px;font-weight:bold;}
-  .scratchBlock.cond{background:#4a90d9;}
-  .scratchBlock.act{background:#5cb85c;}
-  .scratchBlock select, .scratchBlock input[type=number], .scratchBlock input[type=text]{
-    background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:5px;
-    padding:3px 6px;font-size:12px;}
-  .scratchBlock .rmBlockBtn{margin-left:auto;background:rgba(0,0,0,.3);border:none;color:#fff;
-    border-radius:5px;width:20px;height:20px;cursor:pointer;font-size:11px;}
-  .addSubBtn{background:none;border:1px dashed var(--border);color:var(--muted);border-radius:6px;
-    padding:4px 10px;font-size:11px;cursor:pointer;margin-bottom:8px;}
-  .ruleBlock .rmRuleBtn{background:var(--accent2);border:none;color:#fff;border-radius:6px;
-    padding:4px 10px;font-size:11px;cursor:pointer;float:right;}
   #resultOverlay{z-index:480;}
   #resultOverlay .box, #directAttackModal .box{background:var(--panel);border-radius:12px;padding:24px;
     max-width:380px;width:90%;text-align:center;}
@@ -566,17 +545,13 @@
     <h3>⇅ デバイス間の同期</h3>
     <p style="font-size:13px;color:var(--muted);line-height:1.7;">
       追加・編集したカードや、ガチャの所持カードはこの端末のブラウザ内にだけ保存されています。
-      別の端末（スマホなど）で同じ内容を使いたいときは、以下でコードを発行してコピーし、
-      その端末に貼り付けて読み込んでください。自動では同期されません。
+      別の端末（スマホなど）で同じ内容を使いたいときは、以下でファイルを書き出して、
+      その端末に送って読み込んでください。自動では同期されません。
     </p>
-    <button class="main-btn" id="syncExportBtn">📤 この端末のデータをコードにする</button>
-    <textarea id="syncExportOutput" readonly style="display:none;width:100%;height:80px;margin-top:8px;
-      background:#11131a;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px;font-size:11px;"></textarea>
-    <button class="sec-btn" id="syncExportCopyBtn" style="display:none;">コードをコピー</button>
+    <button class="main-btn" id="syncExportBtn">📤 この端末のデータを書き出す</button>
     <div style="height:14px;"></div>
-    <textarea id="syncImportCodeInput" placeholder="別の端末で発行したコードをここに貼り付け" style="width:100%;height:60px;
-      background:#11131a;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px;font-size:11px;"></textarea>
-    <button class="sec-btn" id="syncImportBtn">📥 コードから読み込む（上書き統合されます）</button>
+    <input type="file" id="syncImportInput" accept="application/json" style="display:none;">
+    <button class="sec-btn" id="syncImportBtn">📥 ファイルから読み込む（上書き統合されます）</button>
 
     <div style="border-top:1px solid var(--border);margin:18px 0;"></div>
     <h3>🔄 端末間リアルタイム同期</h3>
@@ -593,22 +568,6 @@
     <input type="text" id="syncJoinCodeInput" placeholder="4桁の同期コードを入力" maxlength="4" inputmode="numeric" style="letter-spacing:4px;text-align:center;font-size:18px;">
     <button class="main-btn" id="syncJoinBtn">同期コードで接続</button>
     <p class="statusMsg" id="syncConnStatus"></p>
-
-    <div style="border-top:1px solid var(--border);margin:18px 0;"></div>
-    <h3>☁️ 共有置き場と同期（サイト経由・簡単）</h3>
-    <p style="font-size:13px;color:var(--muted);line-height:1.7;">
-      このサイト自体（GitHubリポジトリ）を「みんなのカード置き場」として使う方法です。
-      両方が同時にオンラインである必要はなく、好きなタイミングで取得・追加ができます。
-    </p>
-    <label style="font-size:12px;color:var(--muted);">リポジトリ（例：ユーザー名/リポジトリ名）</label>
-    <input type="text" id="cloudRepoInput" placeholder="例：wan999562-ship-it/card-deck-builder-aaaaaa">
-    <label style="font-size:12px;color:var(--muted);">GitHubトークン（カードを追加する人のみ必要。取得だけなら空欄でOK）</label>
-    <input type="text" id="cloudTokenInput" placeholder="ghp_... （このカードだけに書き込み権限を絞った物を推奨）">
-    <div style="display:flex;gap:8px;margin-top:10px;">
-      <button class="main-btn" id="cloudDownloadBtn" style="margin:0;">⬇️ 最新のカードを取得</button>
-      <button class="main-btn" id="cloudUploadBtn" style="margin:0;background:var(--accent2);">⬆️ 自分の新規カードを共有に追加</button>
-    </div>
-    <p class="statusMsg" id="cloudSyncStatus"></p>
   </div>
 </div>
 
@@ -675,24 +634,10 @@
     </label>
     <label>効果</label>
     <textarea id="editEffect"></textarea>
-    <button class="sec-btn" id="openScriptEditorBtn" style="margin-top:10px;">🧩 効果スクリプトを編集（<span id="scriptRuleCount">0</span>個のルール）</button>
     <div class="actions">
       <button class="sec-btn" id="editDelBtn" style="display:none;">🗑 削除</button>
       <button class="main-btn" id="editSaveBtn">保存</button>
     </div>
-  </div>
-</div>
-
-<div id="scriptModal">
-  <div class="box">
-    <span class="close" id="scriptModalClose">✕</span>
-    <h3>🧩 効果スクリプト（ミニルールエンジン）</h3>
-    <p style="font-size:12px;color:var(--muted);line-height:1.6;">
-      「◯◯した時」→「もし条件を満たすなら」→「これを実行する」をブロックで組み立てます。
-      オンライン対戦中、条件を満たすと自動で実行されます（自分側の盤面だけに作用します）。
-    </p>
-    <div id="scriptRulesList"></div>
-    <button class="sec-btn" id="addRuleBtn">＋ ルールを追加</button>
   </div>
 </div>
 
@@ -749,7 +694,41 @@
       <input type="text" id="joinCodeInput" placeholder="4桁のルームコードを入力" maxlength="4" inputmode="numeric" style="letter-spacing:4px;text-align:center;font-size:18px;">
       <button class="main-btn" id="joinRoomBtn">接続する</button>
     </div>
+    <div style="border-top:1px solid var(--border);margin:18px 0;"></div>
+    <div id="bSpecPane">
+      <label style="font-size:12px;color:var(--muted);">試合を観戦する（対戦せず見るだけ）</label>
+      <input type="text" id="specCodeInput" placeholder="ホスト側の4桁のルームコードを入力" maxlength="4" inputmode="numeric" style="letter-spacing:4px;text-align:center;font-size:18px;">
+      <button class="main-btn" id="specJoinBtn" style="background:var(--accent3);color:#0b1a14;">👀 観戦する</button>
+    </div>
     <p class="statusMsg" id="connStatus"></p>
+  </div>
+
+  <div id="spectatorScreen" style="display:none;">
+    <h2 style="text-align:center;">👀 観戦モード</h2>
+    <div id="bgmTextSpec" style="text-align:center;color:var(--muted);font-size:13px;margin-bottom:10px;">🎵 BGM：なし</div>
+    <div class="halfBoard oppHalf">
+      <div class="zoneRow"><div class="zoneBox wide battleHalf"><h4>プレイヤーA：バトルゾーン</h4><div class="zoneCards" id="specABattle"></div></div></div>
+      <div class="zoneRow">
+        <div class="zoneBox shieldRowBox"><h4>墓地<span id="specAGyCount"></span></h4><div class="zoneCards" id="specAGraveyard"></div></div>
+        <div class="zoneBox shieldRowBox"><h4>手札</h4><div class="zoneCards" id="specAHand"></div></div>
+        <div class="zoneBox shieldRowBox"><h4>シールド</h4><div class="zoneCards" id="specAShield"></div></div>
+        <div class="zoneBox shieldRowBox"><h4>山札</h4><div class="zoneCards" id="specADeck"></div></div>
+      </div>
+      <div class="zoneRow"><div class="zoneBox wide manaRowBox"><h4>プレイヤーA：マナゾーン</h4><div class="zoneCards" id="specAMana"></div></div></div>
+    </div>
+    <div class="tableDivider"></div>
+    <div class="halfBoard myHalf">
+      <div class="zoneRow"><div class="zoneBox wide manaRowBox"><h4>プレイヤーB：マナゾーン</h4><div class="zoneCards" id="specBMana"></div></div></div>
+      <div class="zoneRow">
+        <div class="zoneBox shieldRowBox"><h4>山札</h4><div class="zoneCards" id="specBDeck"></div></div>
+        <div class="zoneBox shieldRowBox"><h4>シールド</h4><div class="zoneCards" id="specBShield"></div></div>
+        <div class="zoneBox shieldRowBox"><h4>手札</h4><div class="zoneCards" id="specBHand"></div></div>
+        <div class="zoneBox shieldRowBox"><h4>墓地<span id="specBGyCount"></span></h4><div class="zoneCards" id="specBGraveyard"></div></div>
+      </div>
+      <div class="zoneRow"><div class="zoneBox wide battleHalf"><h4>プレイヤーB：バトルゾーン</h4><div class="zoneCards" id="specBBattle"></div></div></div>
+    </div>
+    <div id="specLogPanel" style="margin-top:10px;background:#0b0c10;border:1px solid var(--border);border-radius:8px;padding:4px 10px;height:80px;overflow-y:auto;font-size:11px;color:var(--muted);"></div>
+    <button class="sec-btn" id="specLeaveBtn" style="margin-top:10px;">観戦をやめる</button>
   </div>
 
   <div id="battleDeckPick" class="bScreen" style="display:none;">
@@ -1274,38 +1253,36 @@ document.getElementById('syncExportBtn').addEventListener('click', async ()=>{
   ]);
   const payload = { version:1, exportedAt: new Date().toISOString(),
     custom: customRows, edits: editRows, gacha: gachaRows };
-  const json = JSON.stringify(payload);
-  const code = btoa(unescape(encodeURIComponent(json)));
-  const out = document.getElementById('syncExportOutput');
-  out.value = code;
-  out.style.display = 'block';
-  document.getElementById('syncExportCopyBtn').style.display = 'inline-block';
-});
-document.getElementById('syncExportCopyBtn').addEventListener('click', ()=>{
-  const out = document.getElementById('syncExportOutput');
-  out.select();
-  navigator.clipboard.writeText(out.value).then(()=>flashMsg('コピーしました')).catch(()=>{
-    document.execCommand('copy'); flashMsg('コピーしました');
-  });
+  const blob = new Blob([JSON.stringify(payload)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0,10);
+  a.href = url; a.download = `carddb_sync_${stamp}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
 });
 
-document.getElementById('syncImportBtn').addEventListener('click', async ()=>{
-  const code = document.getElementById('syncImportCodeInput').value.trim();
-  if(!code){ flashMsg('コードを貼り付けてください'); return; }
+document.getElementById('syncImportBtn').addEventListener('click', ()=>{
+  document.getElementById('syncImportInput').click();
+});
+document.getElementById('syncImportInput').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
   try{
-    const json = decodeURIComponent(escape(atob(code)));
-    const data = JSON.parse(json);
+    const text = await file.text();
+    const data = JSON.parse(text);
     for(const row of (data.custom||[])) await idbPut('custom', row);
     for(const row of (data.edits||[])) await idbPut('edits', row);
     for(const row of (data.gacha||[])) await idbPut('gacha', row);
     await loadUserData();
     initFilters();
     render(); renderDeck(); renderEval(); renderGachaStats();
-    document.getElementById('syncImportCodeInput').value = '';
+    document.getElementById('syncModal').style.display='none';
     flashMsg('データを読み込みました');
   }catch(err){
-    flashMsg('コードの読み込みに失敗しました（コードが正しいか確認してください）');
+    flashMsg('ファイルの読み込みに失敗しました');
   }
+  e.target.value = '';
 });
 
 // ---- P2Pリアルタイム同期（オンライン対戦と同じ仕組みでカードを送り合う） ----
@@ -1380,91 +1357,6 @@ async function sHandleData(msg){
 function sPushCardIfConnected(kind, def){
   if(sConn && sConn.open) sConn.send({type:'cardPush', kind, def});
 }
-
-// ---- 共有置き場（GitHubリポジトリ）経由のカード同期 ----
-const cloudRepoInputEl = document.getElementById('cloudRepoInput');
-const cloudTokenInputEl = document.getElementById('cloudTokenInput');
-cloudRepoInputEl.value = localStorage.getItem('cardDbCloudRepo') || '';
-cloudTokenInputEl.value = localStorage.getItem('cardDbCloudToken') || '';
-cloudRepoInputEl.addEventListener('change', ()=> localStorage.setItem('cardDbCloudRepo', cloudRepoInputEl.value.trim()));
-cloudTokenInputEl.addEventListener('change', ()=> localStorage.setItem('cardDbCloudToken', cloudTokenInputEl.value.trim()));
-
-function b64EncodeUtf8(str){ return btoa(unescape(encodeURIComponent(str))); }
-function b64DecodeUtf8(str){ return decodeURIComponent(escape(atob(str))); }
-
-document.getElementById('cloudDownloadBtn').addEventListener('click', async ()=>{
-  const repo = cloudRepoInputEl.value.trim();
-  const statusEl = document.getElementById('cloudSyncStatus');
-  if(!repo){ statusEl.textContent = 'リポジトリ（ユーザー名/リポジトリ名）を入力してください'; return; }
-  statusEl.textContent = '取得中...';
-  try{
-    const res = await fetch(`https://raw.githubusercontent.com/${repo}/main/shared-cards.json?_=${Date.now()}`);
-    if(res.status===404){ statusEl.textContent = 'まだ共有カードはありません（誰かが追加すると出てきます）'; return; }
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const list = await res.json();
-    let added = 0;
-    const existingKeys = new Set(Object.values(customCards).map(c=>c.shareKey).filter(Boolean));
-    for(const def of list){
-      if(def.shareKey && existingKeys.has(def.shareKey)) continue; // 既に取り込み済み
-      const newId = nextCustomId++;
-      const newCard = {...def, id:newId};
-      customCards[newId] = newCard;
-      await idbPut('custom', newCard);
-      added++;
-    }
-    rebuildLib(); initFilters(); render(); renderDeck(); renderEval();
-    statusEl.textContent = added ? `新しく${added}枚取得しました。` : '新しいカードはありませんでした（もう最新です）。';
-  }catch(err){
-    statusEl.textContent = '取得に失敗しました：'+err.message;
-  }
-});
-
-document.getElementById('cloudUploadBtn').addEventListener('click', async ()=>{
-  const repo = cloudRepoInputEl.value.trim();
-  const token = cloudTokenInputEl.value.trim();
-  const statusEl = document.getElementById('cloudSyncStatus');
-  if(!repo){ statusEl.textContent = 'リポジトリ（ユーザー名/リポジトリ名）を入力してください'; return; }
-  if(!token){ statusEl.textContent = '追加にはGitHubトークンが必要です'; return; }
-  statusEl.textContent = 'アップロード中...';
-  try{
-    // 現在のファイルを取得（無ければ新規作成）
-    let sha = null, list = [];
-    const getRes = await fetch(`https://api.github.com/repos/${repo}/contents/shared-cards.json`, {
-      headers: { 'Authorization': `token ${token}` }
-    });
-    if(getRes.ok){
-      const data = await getRes.json();
-      sha = data.sha;
-      list = JSON.parse(b64DecodeUtf8(data.content));
-    } else if(getRes.status!==404){
-      throw new Error('取得エラー HTTP '+getRes.status);
-    }
-    const existingKeys = new Set(list.map(d=>d.shareKey).filter(Boolean));
-    const mine = Object.values(customCards);
-    let uploaded = 0;
-    for(const c of mine){
-      const key = c.shareKey || `${c.name}_${c.id}`;
-      if(existingKeys.has(key)) continue;
-      list.push({...c, id:undefined, shareKey:key});
-      existingKeys.add(key);
-      uploaded++;
-    }
-    if(uploaded===0){ statusEl.textContent = '新しく共有するカードはありませんでした（既にアップロード済みです）。'; return; }
-    const putRes = await fetch(`https://api.github.com/repos/${repo}/contents/shared-cards.json`, {
-      method: 'PUT',
-      headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: `カードを${uploaded}枚追加`,
-        content: b64EncodeUtf8(JSON.stringify(list, null, 1)),
-        sha: sha || undefined
-      })
-    });
-    if(!putRes.ok){ const t = await putRes.text(); throw new Error('アップロードエラー '+putRes.status+' '+t.slice(0,200)); }
-    statusEl.textContent = `${uploaded}枚のカードを共有置き場に追加しました。`;
-  }catch(err){
-    statusEl.textContent = '失敗しました：'+err.message;
-  }
-});
 
 function imgSrc(c, full){
   return `data:image/${c.mime||'webp'};base64,${full ? (c.imgFull||c.img) : c.img}`;
@@ -1898,13 +1790,18 @@ ${cardXmlList.join('\n')}
 // ---------- カード追加・編集モーダル ----------
 let editingId = null;      // null=新規追加, それ以外=編集中のid
 let pendingImage = null;   // {thumb, full, mime} 新しく選ばれた画像
-let pendingScript = [];    // 効果スクリプト（ミニルールエンジン）
 
 function fileToImageData(file){
   return new Promise((resolve)=>{
     const reader = new FileReader();
     reader.onload = ()=>{
       const fullB64 = reader.result.split(',')[1];
+      if(file.type==='image/gif'){
+        // GIFはcanvasに描画すると最初の1コマで静止してしまうため、
+        // アニメーションを保つために元データをそのまま使う（軽量化はしない）
+        resolve({ thumb: fullB64, full: fullB64, mime: 'gif' });
+        return;
+      }
       const img = new Image();
       img.onload = ()=>{
         const neww = 600;
@@ -1955,123 +1852,6 @@ function fillDatalist(id, values){
   });
 }
 
-// ---------- 効果スクリプトのブロックエディタ（ミニルールエンジン） ----------
-const SCRIPT_TRIGGERS = {
-  onEnterBattle: 'このカードがバトルゾーンに出た時',
-  onTap: 'このカードがタップされた時',
-  onDestroyed: 'このカードが破壊された時',
-  onTurnStart: '自分のターンが始まった時（このカードが場にある間）',
-  onShieldBreak: 'このカードがシールドブレイクでめくれた時',
-};
-const SCRIPT_COND_TYPES = {
-  handCount: '自分の手札の枚数',
-  manaCount: '自分のマナゾーンの枚数',
-  battleCount: '自分のバトルゾーンの枚数',
-  oppShieldCount: '相手のシールドの枚数',
-  selfCost: 'このカード自身の召喚コスト',
-  selfPower: 'このカード自身のパワー',
-};
-const SCRIPT_ACTION_TYPES = {
-  draw: 'カードを[N]枚引く',
-  addShield: '山札の上からシールドに[N]枚加える',
-  discardHand: '手札の先頭から[N]枚捨てる',
-  untapAll: '自分の場のカードを全てアンタップする',
-  message: 'メッセージを表示する：[TEXT]',
-};
-
-function scriptOptions(obj, selected){
-  return Object.entries(obj).map(([k,v])=>`<option value="${k}" ${k===selected?'selected':''}>${v}</option>`).join('');
-}
-function renderScriptRules(){
-  const list = document.getElementById('scriptRulesList');
-  list.innerHTML = '';
-  pendingScript.forEach((rule, ri)=>{
-    const block = document.createElement('div');
-    block.className = 'ruleBlock';
-    block.innerHTML = `<button class="rmRuleBtn" data-ri="${ri}">削除</button>
-      <div class="scratchBlock hat">
-        もし　<select data-ri="${ri}" data-f="trigger">${scriptOptions(SCRIPT_TRIGGERS, rule.trigger)}</select>
-      </div>
-      <div class="condArea" data-ri="${ri}"></div>
-      <button class="addSubBtn" data-act="addCond" data-ri="${ri}">＋ 条件を追加（なくても実行されます）</button>
-      <div class="actArea" data-ri="${ri}"></div>
-      <button class="addSubBtn" data-act="addAct" data-ri="${ri}">＋ 実行内容を追加</button>
-    `;
-    const condArea = block.querySelector('.condArea');
-    (rule.conditions||[]).forEach((cond, ci)=>{
-      const row = document.createElement('div');
-      row.className = 'scratchBlock cond';
-      row.innerHTML = `もし　<select data-ri="${ri}" data-ci="${ci}" data-f="condType">${scriptOptions(SCRIPT_COND_TYPES, cond.type)}</select>
-        が　<select data-ri="${ri}" data-ci="${ci}" data-f="condOp">
-          <option value="gte" ${cond.op==='gte'?'selected':''}>以上</option>
-          <option value="lte" ${cond.op==='lte'?'selected':''}>以下</option>
-          <option value="eq" ${cond.op==='eq'?'selected':''}>ちょうど</option>
-        </select>
-        <input type="number" min="0" value="${cond.value||0}" data-ri="${ri}" data-ci="${ci}" data-f="condValue" style="width:50px;">
-        <button class="rmBlockBtn" data-act="rmCond" data-ri="${ri}" data-ci="${ci}">✕</button>`;
-      condArea.appendChild(row);
-    });
-    const actArea = block.querySelector('.actArea');
-    (rule.actions||[]).forEach((act, ai)=>{
-      const row = document.createElement('div');
-      row.className = 'scratchBlock act';
-      const isMsg = act.type==='message';
-      row.innerHTML = `実行：<select data-ri="${ri}" data-ai="${ai}" data-f="actType">${scriptOptions(SCRIPT_ACTION_TYPES, act.type)}</select>
-        ${isMsg
-          ? `<input type="text" value="${(act.text||'').replace(/"/g,'&quot;')}" data-ri="${ri}" data-ai="${ai}" data-f="actText" placeholder="表示する文言" style="width:140px;">`
-          : (act.type==='untapAll' ? '' : `<input type="number" min="1" value="${act.value||1}" data-ri="${ri}" data-ai="${ai}" data-f="actValue" style="width:50px;">`)}
-        <button class="rmBlockBtn" data-act="rmAct" data-ri="${ri}" data-ai="${ai}">✕</button>`;
-      actArea.appendChild(row);
-    });
-    list.appendChild(block);
-  });
-
-  list.querySelectorAll('select,input').forEach(el=>{
-    el.addEventListener('change', (e)=>{
-      const ri = Number(e.target.dataset.ri);
-      const rule = pendingScript[ri]; if(!rule) return;
-      const f = e.target.dataset.f;
-      if(f==='trigger') rule.trigger = e.target.value;
-      else if(f==='condType') rule.conditions[e.target.dataset.ci].type = e.target.value;
-      else if(f==='condOp') rule.conditions[e.target.dataset.ci].op = e.target.value;
-      else if(f==='condValue') rule.conditions[e.target.dataset.ci].value = Number(e.target.value);
-      else if(f==='actType'){ rule.actions[e.target.dataset.ai].type = e.target.value; renderScriptRules(); }
-      else if(f==='actValue') rule.actions[e.target.dataset.ai].value = Number(e.target.value);
-      else if(f==='actText') rule.actions[e.target.dataset.ai].text = e.target.value;
-    });
-  });
-  list.querySelectorAll('[data-act]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const ri = Number(btn.dataset.ri);
-      const rule = pendingScript[ri]; if(!rule) return;
-      const act = btn.dataset.act;
-      if(act==='addCond'){ rule.conditions = rule.conditions||[]; rule.conditions.push({type:'handCount', op:'gte', value:0}); }
-      else if(act==='addAct'){ rule.actions = rule.actions||[]; rule.actions.push({type:'draw', value:1}); }
-      else if(act==='rmCond') rule.conditions.splice(Number(btn.dataset.ci),1);
-      else if(act==='rmAct') rule.actions.splice(Number(btn.dataset.ai),1);
-      renderScriptRules();
-    });
-  });
-  list.querySelectorAll('.rmRuleBtn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      pendingScript.splice(Number(btn.dataset.ri),1);
-      renderScriptRules();
-    });
-  });
-}
-document.getElementById('openScriptEditorBtn').addEventListener('click', ()=>{
-  renderScriptRules();
-  document.getElementById('scriptModal').classList.add('show');
-});
-document.getElementById('scriptModalClose').addEventListener('click', ()=>{
-  document.getElementById('scriptModal').classList.remove('show');
-  document.getElementById('scriptRuleCount').textContent = pendingScript.length;
-});
-document.getElementById('addRuleBtn').addEventListener('click', ()=>{
-  pendingScript.push({trigger:'onEnterBattle', conditions:[], actions:[]});
-  renderScriptRules();
-});
-
 function openEditModal(c){
   editingId = c ? c.id : null;
   pendingImage = null;
@@ -2088,8 +1868,6 @@ function openEditModal(c){
   document.getElementById('editCardFx').value = c ? (c.cardFx||'none') : 'none';
   document.getElementById('editCutIn').value = c ? (c.cutIn||'auto') : 'auto';
   document.getElementById('editIsTrigger').checked = c ? !!c.isTrigger : false;
-  pendingScript = c && c.script ? JSON.parse(JSON.stringify(c.script)) : [];
-  document.getElementById('scriptRuleCount').textContent = pendingScript.length;
   const prev = document.getElementById('editPreview');
   if(c){ prev.src = imgSrc(c); prev.style.display='block'; }
   else { prev.style.display='none'; prev.src=''; }
@@ -2117,7 +1895,6 @@ document.getElementById('editSaveBtn').addEventListener('click', async ()=>{
     cardFx: document.getElementById('editCardFx').value,
     cutIn: document.getElementById('editCutIn').value,
     isTrigger: document.getElementById('editIsTrigger').checked,
-    script: pendingScript,
     effect: document.getElementById('editEffect').value,
   };
   if(pendingImage){
@@ -2288,6 +2065,7 @@ document.getElementById('battleCloseBtn').addEventListener('click', ()=>{
   document.getElementById('battleOverlay').classList.remove('show');
 });
 
+let bSpectatorConns = [];
 function bSetupConn(c){
   bConn = c;
   bConn.on('open', ()=>{
@@ -2307,7 +2085,23 @@ function bTryCreateRoom(attemptsLeft){
     document.getElementById('roomCodeText').textContent = code;
     document.getElementById('connStatus').textContent = '相手の接続を待っています...';
   });
-  bPeer.on('connection', c=>{ bIsHost=true; bSetupConn(c); });
+  bPeer.on('connection', c=>{
+    // 最初に届くメッセージで「対戦相手」か「観戦者」かを判別する
+    const onFirstData = (msg)=>{
+      c.off('data', onFirstData);
+      if(msg && msg.type==='spectatorJoin'){
+        bSpectatorConns.push(c);
+        c.on('close', ()=>{ bSpectatorConns = bSpectatorConns.filter(x=>x!==c); });
+        if(bMyReady && bOppReady){
+          c.send({type:'specState', who:'host', msg:{type:'state', deckCount:bMy.deck.length, handCount:bMy.hand.length, shieldCount:bMy.shields.length, mana:bMy.mana, battle:bMy.battle, graveyard:bMy.graveyard, sumipe:bMy.sumipe}});
+          c.send({type:'specState', who:'joiner', msg:{type:'state', deckCount:bOpp.deckCount, handCount:bOpp.handCount, shieldCount:bOpp.shieldCount, mana:bOpp.mana, battle:bOpp.battle, graveyard:bOpp.graveyard, sumipe:bOpp.sumipe}});
+        }
+      } else {
+        bIsHost = true; bSetupConn(c); bHandleData(msg);
+      }
+    };
+    c.on('data', onFirstData);
+  });
   bPeer.on('error', e=>{
     if(e.type==='unavailable-id' && attemptsLeft>0){
       bPeer.destroy();
@@ -2334,7 +2128,13 @@ document.getElementById('joinRoomBtn').addEventListener('click', ()=>{
   bPeer.on('open', ()=>{ bSetupConn(bPeer.connect(ROOM_PREFIX+code)); });
   bPeer.on('error', e=>{ document.getElementById('connStatus').textContent = '接続エラー：'+e.type; });
 });
-function bSend(msg){ if(bConn && bConn.open) bConn.send(msg); }
+function bRelayToSpectators(who, msg){
+  bSpectatorConns.forEach(c=>{ if(c.open) c.send({type:'specState', who, msg}); });
+}
+function bSend(msg){
+  if(bConn && bConn.open) bConn.send(msg);
+  if(bIsHost) bRelayToSpectators('host', msg);
+}
 
 async function showBattleDeckPick(){
   document.getElementById('battleHome').style.display='none';
@@ -2566,6 +2366,7 @@ function bBroadcastState(){
     mana:bMy.mana, battle:bMy.battle, graveyard:bMy.graveyard, sumipe:bMy.sumipe});
 }
 function bHandleData(msg){
+  if(bIsHost) bRelayToSpectators('joiner', msg);
   if(msg.type==='ready'){ bOppReady=true; bCheckBothReady(); }
   else if(msg.type==='state'){
     bOpp.deckCount=msg.deckCount; bOpp.handCount=msg.handCount; bOpp.shieldCount=msg.shieldCount;
@@ -3086,56 +2887,9 @@ document.getElementById('untapAllBtn').addEventListener('click', ()=>{
   bBroadcastState(); bRenderAll();
 });
 
-// ---------- 効果スクリプトの実行（ミニルールエンジン） ----------
-function bEvalCondition(cond, card){
-  let actual;
-  if(cond.type==='handCount') actual = bMy.hand.length;
-  else if(cond.type==='manaCount') actual = bMy.mana.length;
-  else if(cond.type==='battleCount') actual = bMy.battle.length;
-  else if(cond.type==='oppShieldCount') actual = bOpp.shieldCount||0;
-  else if(cond.type==='selfCost') actual = (typeof card.cost==='number') ? card.cost : -1;
-  else if(cond.type==='selfPower') actual = (typeof card.power==='number') ? card.power : -1;
-  else return true;
-  if(cond.op==='gte') return actual >= cond.value;
-  if(cond.op==='lte') return actual <= cond.value;
-  if(cond.op==='eq') return actual === cond.value;
-  return true;
-}
-function bRunAction(action, sourceName){
-  if(action.type==='draw'){
-    for(let i=0;i<(action.value||1);i++){ if(bMy.deck.length){ bMy.hand.push(bMy.deck.shift()); } }
-    bSendLog(`【${sourceName}の効果】カードを${action.value||1}枚引きました`);
-  } else if(action.type==='addShield'){
-    for(let i=0;i<(action.value||1);i++){ if(bMy.deck.length){ bMy.shields.push(bMy.deck.shift()); } }
-    bSendLog(`【${sourceName}の効果】シールドに${action.value||1}枚加えました`);
-  } else if(action.type==='discardHand'){
-    let n=0;
-    for(let i=0;i<(action.value||1);i++){ if(bMy.hand.length){ bMy.graveyard.push(bMy.hand.shift()); n++; } }
-    bSendLog(`【${sourceName}の効果】手札を${n}枚捨てました`);
-  } else if(action.type==='untapAll'){
-    [...bMy.mana, ...bMy.battle].forEach(item=>item.tapped=false);
-    bSendLog(`【${sourceName}の効果】自分の場のカードを全てアンタップしました`);
-  } else if(action.type==='message'){
-    bSendLog(`【${sourceName}の効果】${action.text||''}`);
-  }
-}
-function bRunScript(card, trigger){
-  if(!card || !card.script || !card.script.length) return;
-  let ran = false;
-  card.script.forEach(rule=>{
-    if(rule.trigger !== trigger) return;
-    const conds = rule.conditions||[];
-    if(!conds.every(c=>bEvalCondition(c, card))) return;
-    (rule.actions||[]).forEach(a=>bRunAction(a, card.name));
-    ran = true;
-  });
-  if(ran) bBroadcastState();
-  bRenderAll();
-}
-// 自分の場にいる全カードの「自分のターン開始時」スクリプトを実行
-function bRunTurnStartScripts(){
-  bMy.battle.forEach(entry=> bRunScript(CM(entry.id), 'onTurnStart'));
-}
+// ---------- （効果スクリプト機能は廃止） ----------
+function bRunScript(){ /* no-op: 効果スクリプト機能は廃止 */ }
+function bRunTurnStartScripts(){ /* no-op: 効果スクリプト機能は廃止 */ }
 
 function bNotifyRareIfNeeded(id){
   const c = CM(id);
@@ -3505,6 +3259,83 @@ document.getElementById('bgmClearBtn').addEventListener('click', ()=>{
 });
 
 // ---- カットイン ----
+// ---- 観戦モード ----
+let specPeer, specConn;
+let specA = { deckCount:0, handCount:0, shieldCount:0, mana:[], battle:[], graveyard:[], sumipe:[] };
+let specB = { deckCount:0, handCount:0, shieldCount:0, mana:[], battle:[], graveyard:[], sumipe:[] };
+document.getElementById('specJoinBtn').addEventListener('click', ()=>{
+  const code = document.getElementById('specCodeInput').value.trim();
+  if(!code) return;
+  document.getElementById('connStatus').textContent = '接続中...';
+  specPeer = new Peer();
+  specPeer.on('open', ()=>{
+    specConn = specPeer.connect(ROOM_PREFIX+code);
+    specConn.on('open', ()=>{
+      specConn.send({type:'spectatorJoin'});
+      document.getElementById('battleHome').style.display='none';
+      document.getElementById('spectatorScreen').style.display='block';
+    });
+    specConn.on('data', specHandleData);
+    specConn.on('close', ()=>{ flashMsg('観戦接続が切断されました'); });
+  });
+  specPeer.on('error', e=>{ document.getElementById('connStatus').textContent = '接続エラー：'+e.type; });
+});
+document.getElementById('specLeaveBtn').addEventListener('click', ()=>{
+  if(specConn) specConn.close();
+  if(specPeer) specPeer.destroy();
+  document.getElementById('spectatorScreen').style.display='none';
+  document.getElementById('battleHome').style.display='block';
+});
+function specLog(text){
+  const p = document.createElement('div');
+  p.textContent = text;
+  const panel = document.getElementById('specLogPanel');
+  panel.appendChild(p); panel.scrollTop = panel.scrollHeight;
+}
+function specHandleData(wrapped){
+  if(wrapped.type!=='specState') return;
+  const target = wrapped.who==='host' ? specA : specB;
+  const msg = wrapped.msg;
+  if(msg.type==='state'){
+    target.deckCount=msg.deckCount; target.handCount=msg.handCount; target.shieldCount=msg.shieldCount;
+    target.mana=msg.mana; target.battle=msg.battle; target.graveyard=msg.graveyard; target.sumipe=msg.sumipe||[];
+    specRenderAll();
+  } else if(msg.type==='log'){
+    specLog(`[${wrapped.who==='host'?'プレイヤーA':'プレイヤーB'}] ${msg.text}`);
+  } else if(msg.type==='bgm'){
+    document.getElementById('bgmTextSpec').textContent = msg.name ? `🎵 BGM：${msg.name}` : '🎵 BGM：なし';
+  } else if(msg.type==='reveal' || msg.type==='rareEnter' || msg.type==='shieldTrigger'){
+    bShowCutIn(CM(msg.cardId), msg.label||'登場！', true, msg.style);
+  }
+}
+function specCardRow(elId, ids){
+  const el = document.getElementById(elId); el.innerHTML='';
+  ids.forEach(id=>{
+    const c = CM(id);
+    const div = document.createElement('div'); div.className='mcard';
+    div.innerHTML = `<img src="${imgSrc(c)}" title="${c.name}">`;
+    bAttachHoverPreview(div, c);
+    el.appendChild(div);
+  });
+}
+function specBackRow(elId, count){
+  const el = document.getElementById(elId); el.innerHTML='';
+  for(let i=0;i<count;i++) el.appendChild(bBackEl('', 'my'));
+}
+function specRenderAll(){
+  specBackRow('specADeck', specA.deckCount); specBackRow('specAHand', specA.handCount); specBackRow('specAShield', specA.shieldCount);
+  specCardRow('specAMana', (specA.mana||[]).map(m=>m.id));
+  specCardRow('specAGraveyard', specA.graveyard||[]);
+  specCardRow('specABattle', (specA.battle||[]).map(m=>m.id));
+  document.getElementById('specAGyCount').textContent = ` (${(specA.graveyard||[]).length})`;
+
+  specBackRow('specBDeck', specB.deckCount); specBackRow('specBHand', specB.handCount); specBackRow('specBShield', specB.shieldCount);
+  specCardRow('specBMana', (specB.mana||[]).map(m=>m.id));
+  specCardRow('specBGraveyard', specB.graveyard||[]);
+  specCardRow('specBBattle', (specB.battle||[]).map(m=>m.id));
+  document.getElementById('specBGyCount').textContent = ` (${(specB.graveyard||[]).length})`;
+}
+
 function bShowCutIn(c, label, rare, style){
   style = style || 'standard';
   const layer = document.getElementById('battleCutIn');
@@ -3514,7 +3345,7 @@ function bShowCutIn(c, label, rare, style){
   document.getElementById('cutInTxt').textContent = `${rare?(c.rarity+'！ '):''}${label} ${c.name}`;
   layer.className = 'style-'+style;
   layer.classList.add('show');
-  setTimeout(()=>layer.classList.remove('show'), rare?2200:1800);
+  setTimeout(()=>layer.classList.remove('show'), rare?1500:1200);
 }
 document.getElementById('battleCutIn').addEventListener('click', ()=>{ document.getElementById('battleCutIn').classList.remove('show'); });
 
