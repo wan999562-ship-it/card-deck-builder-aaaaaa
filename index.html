@@ -2068,10 +2068,12 @@ document.getElementById('battleCloseBtn').addEventListener('click', ()=>{
 let bSpectatorConns = [];
 function bSetupConn(c){
   bConn = c;
-  bConn.on('open', ()=>{
+  const bDoTransition = ()=>{
     document.getElementById('connStatus').textContent = '接続しました！デッキを選んでください。';
     showBattleDeckPick();
-  });
+  };
+  if(c.open) bDoTransition();
+  else bConn.on('open', bDoTransition);
   bConn.on('data', bHandleData);
   bConn.on('close', ()=>{ document.getElementById('connStatus').textContent = '接続が切断されました。'; });
 }
@@ -2097,7 +2099,8 @@ function bTryCreateRoom(attemptsLeft){
           c.send({type:'specState', who:'joiner', msg:{type:'state', deckCount:bOpp.deckCount, handCount:bOpp.handCount, shieldCount:bOpp.shieldCount, mana:bOpp.mana, battle:bOpp.battle, graveyard:bOpp.graveyard, sumipe:bOpp.sumipe}});
         }
       } else {
-        bIsHost = true; bSetupConn(c); bHandleData(msg);
+        bIsHost = true; bSetupConn(c);
+        if(msg && msg.type!=='hello') bHandleData(msg);
       }
     };
     c.on('data', onFirstData);
@@ -2125,7 +2128,11 @@ document.getElementById('joinRoomBtn').addEventListener('click', ()=>{
   if(!code) return;
   document.getElementById('connStatus').textContent = '接続中...';
   bPeer = new Peer();
-  bPeer.on('open', ()=>{ bSetupConn(bPeer.connect(ROOM_PREFIX+code)); });
+  bPeer.on('open', ()=>{
+    const conn = bPeer.connect(ROOM_PREFIX+code);
+    conn.on('open', ()=>{ conn.send({type:'hello'}); });
+    bSetupConn(conn);
+  });
   bPeer.on('error', e=>{ document.getElementById('connStatus').textContent = '接続エラー：'+e.type; });
 });
 function bRelayToSpectators(who, msg){
