@@ -2245,10 +2245,10 @@ function bUpdateTurnUI(){
   const whoLabel = bMyTurn ? 'あなたのターン' : '相手のターン';
   txt.textContent = `${round}ターン目 ${turnRoleLabel}（${bMyTurn?'🟢':'🔴'} ${whoLabel}）`;
   btn.disabled = !bMyTurn;
-  document.querySelector('.halfBoard.myHalf').classList.toggle('activeHalf', bMyTurn);
-  document.querySelector('.halfBoard.myHalf').classList.toggle('dimHalf', !bMyTurn);
-  document.querySelector('.halfBoard.oppHalf').classList.toggle('activeHalf', !bMyTurn);
-  document.querySelector('.halfBoard.oppHalf').classList.toggle('dimHalf', bMyTurn);
+  document.querySelector('#board .halfBoard.myHalf').classList.toggle('activeHalf', bMyTurn);
+  document.querySelector('#board .halfBoard.myHalf').classList.toggle('dimHalf', !bMyTurn);
+  document.querySelector('#board .halfBoard.oppHalf').classList.toggle('activeHalf', !bMyTurn);
+  document.querySelector('#board .halfBoard.oppHalf').classList.toggle('dimHalf', bMyTurn);
 }
 let bSideLayout = true;
 function bApplyLayout(){
@@ -2307,8 +2307,8 @@ function bResizeImageFile(file, maxWidth){
 }
 
 function bApplyPlaymats(){
-  const myBox = document.querySelector('.halfBoard.myHalf');
-  const oppBox = document.querySelector('.halfBoard.oppHalf');
+  const myBox = document.querySelector('#board .halfBoard.myHalf');
+  const oppBox = document.querySelector('#board .halfBoard.oppHalf');
   myBox.style.backgroundImage = myPlaymat ? `url(data:image/${myPlaymatMime};base64,${myPlaymat})` : 'none';
   oppBox.style.backgroundImage = oppPlaymat ? `url(data:image/${oppPlaymatMime};base64,${oppPlaymat})` : 'none';
   myBox.classList.toggle('hasPlaymat', !!myPlaymat);
