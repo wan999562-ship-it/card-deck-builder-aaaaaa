@@ -37,7 +37,7 @@
   .card.selected{border-color:var(--accent2);box-shadow:0 0 0 2px var(--accent2);}
   .card.compared{border-color:var(--accent3);box-shadow:0 0 0 2px var(--accent3);}
   .card.maxed{opacity:.55;}
-  .card img{width:100%;display:block;}
+  .card img{width:100%;display:block;aspect-ratio:1300/1816;object-fit:cover;background:#0b0c10;}
   .card .info{padding:6px 8px;font-size:11px;line-height:1.4;}
   .card .name{font-weight:bold;font-size:12px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .card .meta{color:var(--muted);}
@@ -60,7 +60,7 @@
   aside h2{font-size:15px;margin:0 0 8px;}
   #deckList{flex:1 1 auto;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:10px;min-height:80px;}
   .deckItem{display:flex;align-items:center;gap:6px;background:var(--panel2);border-radius:8px;padding:4px 6px;font-size:12px;}
-  .deckItem img{width:32px;border-radius:4px;}
+  .deckItem img{width:32px;aspect-ratio:1300/1816;object-fit:cover;border-radius:4px;background:#0b0c10;}
   .deckItem span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .deckItem .qtybtn{background:none;border:1px solid var(--border);color:var(--text);cursor:pointer;
     font-size:12px;width:20px;height:20px;border-radius:5px;line-height:1;}
@@ -566,13 +566,17 @@
     <h3>⇅ デバイス間の同期</h3>
     <p style="font-size:13px;color:var(--muted);line-height:1.7;">
       追加・編集したカードや、ガチャの所持カードはこの端末のブラウザ内にだけ保存されています。
-      別の端末（スマホなど）で同じ内容を使いたいときは、以下でファイルを書き出して、
-      その端末に送って読み込んでください。自動では同期されません。
+      別の端末（スマホなど）で同じ内容を使いたいときは、以下でコードを発行してコピーし、
+      その端末に貼り付けて読み込んでください。自動では同期されません。
     </p>
-    <button class="main-btn" id="syncExportBtn">📤 この端末のデータを書き出す</button>
+    <button class="main-btn" id="syncExportBtn">📤 この端末のデータをコードにする</button>
+    <textarea id="syncExportOutput" readonly style="display:none;width:100%;height:80px;margin-top:8px;
+      background:#11131a;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px;font-size:11px;"></textarea>
+    <button class="sec-btn" id="syncExportCopyBtn" style="display:none;">コードをコピー</button>
     <div style="height:14px;"></div>
-    <input type="file" id="syncImportInput" accept="application/json" style="display:none;">
-    <button class="sec-btn" id="syncImportBtn">📥 ファイルから読み込む（上書き統合されます）</button>
+    <textarea id="syncImportCodeInput" placeholder="別の端末で発行したコードをここに貼り付け" style="width:100%;height:60px;
+      background:#11131a;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px;font-size:11px;"></textarea>
+    <button class="sec-btn" id="syncImportBtn">📥 コードから読み込む（上書き統合されます）</button>
 
     <div style="border-top:1px solid var(--border);margin:18px 0;"></div>
     <h3>🔄 端末間リアルタイム同期</h3>
@@ -1270,36 +1274,38 @@ document.getElementById('syncExportBtn').addEventListener('click', async ()=>{
   ]);
   const payload = { version:1, exportedAt: new Date().toISOString(),
     custom: customRows, edits: editRows, gacha: gachaRows };
-  const blob = new Blob([JSON.stringify(payload)], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  const stamp = new Date().toISOString().slice(0,10);
-  a.href = url; a.download = `carddb_sync_${stamp}.json`;
-  document.body.appendChild(a); a.click(); a.remove();
-  URL.revokeObjectURL(url);
+  const json = JSON.stringify(payload);
+  const code = btoa(unescape(encodeURIComponent(json)));
+  const out = document.getElementById('syncExportOutput');
+  out.value = code;
+  out.style.display = 'block';
+  document.getElementById('syncExportCopyBtn').style.display = 'inline-block';
+});
+document.getElementById('syncExportCopyBtn').addEventListener('click', ()=>{
+  const out = document.getElementById('syncExportOutput');
+  out.select();
+  navigator.clipboard.writeText(out.value).then(()=>flashMsg('コピーしました')).catch(()=>{
+    document.execCommand('copy'); flashMsg('コピーしました');
+  });
 });
 
-document.getElementById('syncImportBtn').addEventListener('click', ()=>{
-  document.getElementById('syncImportInput').click();
-});
-document.getElementById('syncImportInput').addEventListener('change', async (e)=>{
-  const file = e.target.files[0];
-  if(!file) return;
+document.getElementById('syncImportBtn').addEventListener('click', async ()=>{
+  const code = document.getElementById('syncImportCodeInput').value.trim();
+  if(!code){ flashMsg('コードを貼り付けてください'); return; }
   try{
-    const text = await file.text();
-    const data = JSON.parse(text);
+    const json = decodeURIComponent(escape(atob(code)));
+    const data = JSON.parse(json);
     for(const row of (data.custom||[])) await idbPut('custom', row);
     for(const row of (data.edits||[])) await idbPut('edits', row);
     for(const row of (data.gacha||[])) await idbPut('gacha', row);
     await loadUserData();
     initFilters();
     render(); renderDeck(); renderEval(); renderGachaStats();
-    document.getElementById('syncModal').style.display='none';
+    document.getElementById('syncImportCodeInput').value = '';
     flashMsg('データを読み込みました');
   }catch(err){
-    flashMsg('ファイルの読み込みに失敗しました');
+    flashMsg('コードの読み込みに失敗しました（コードが正しいか確認してください）');
   }
-  e.target.value = '';
 });
 
 // ---- P2Pリアルタイム同期（オンライン対戦と同じ仕組みでカードを送り合う） ----
@@ -1542,7 +1548,7 @@ function render(){
     div.className = 'card' + (qty>0?' selected':'') + (compare.has(c.id)?' compared':'') + (maxed && qty===0 ? ' maxed':'');
     div.innerHTML = `
       <button class="cmpBtn ${compare.has(c.id)?'on':''}" title="比較に追加">⚖${compare.has(c.id)?' ✓':''}</button>
-      <img src="${imgSrc(c)}" loading="lazy">
+      <img src="${imgSrc(c)}">
       <button class="editBtn" title="編集">✎</button>
       <button class="zoomBtn" title="拡大表示">🔍</button>
       <div class="info">
