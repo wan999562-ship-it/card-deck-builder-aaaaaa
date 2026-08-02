@@ -503,13 +503,15 @@
       <button class="sec-btn" id="loadDeckBtn" style="margin-top:0;">読み込む</button>
       <button class="sec-btn" id="deleteDeckBtn" style="margin-top:0;">削除</button>
     </div>
-    <button class="sec-btn" id="shareDeckBtn">🔗 このデッキを共有コードにする</button>
+    <button class="sec-btn" id="shareDeckBtn">🔗 このデッキを共有する</button>
     <textarea id="shareDeckOutput" readonly style="display:none;width:100%;height:60px;margin-top:6px;
       background:#11131a;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px;font-size:11px;"></textarea>
     <button class="sec-btn" id="shareCopyBtn" style="display:none;">コードをコピー</button>
     <textarea id="importDeckInput" placeholder="共有コードをここに貼り付け" style="width:100%;height:50px;margin-top:8px;
       background:#11131a;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px;font-size:11px;"></textarea>
     <button class="sec-btn" id="importDeckBtn">📥 共有コードから読み込む</button>
+    <input type="file" id="importDeckFileInput" accept="application/json" style="display:none;">
+    <button class="sec-btn" id="importDeckFileBtn">📂 共有ファイルから読み込む</button>
     <button class="sec-btn" id="clearBtn">デッキを空にする</button>
   </aside>
 </div>
@@ -1331,6 +1333,15 @@ async function sSendFullSync(){
   sConn.send({type:'fullSync', custom, edits});
 }
 async function sMergeCustomCard(def){
+  // originIdが一致する既存カードがあれば、それは既に取り込み済み（往復による重複）なのでスキップ
+  if(def.originId){
+    const existing = Object.values(customCards).find(c=>c.originId===def.originId);
+    if(existing) return;
+  } else {
+    // originIdが無い古いカード同士は、名前・コスト・効果が完全一致なら同一とみなす
+    const existing = Object.values(customCards).find(c=>!c.originId && c.name===def.name && c.cost===def.cost && c.effect===def.effect);
+    if(existing) return;
+  }
   const newId = nextCustomId++;
   const newCard = {...def, id:newId};
   customCards[newId] = newCard;
@@ -1906,7 +1917,8 @@ document.getElementById('editSaveBtn').addEventListener('click', async ()=>{
   if(editingId===null){
     // 新規追加
     const id = nextCustomId++;
-    const newCard = { id, file:`custom_${id}`, ...fields };
+    const originId = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const newCard = { id, originId, file:`custom_${id}`, ...fields };
     customCards[id] = newCard;
     await idbPut('custom', newCard);
     sPushCardIfConnected('custom', newCard);
@@ -1992,15 +2004,31 @@ document.getElementById('deleteDeckBtn').addEventListener('click', async ()=>{
 // ================= デッキ共有（共有コードの発行／読み込み） =================
 document.getElementById('shareDeckBtn').addEventListener('click', ()=>{
   if(deck.size===0){ flashMsg('デッキが空です'); return; }
-  const cards = [];
-  const customDefs = [];
-  deck.forEach(e=>{
-    cards.push({id:e.card.id, qty:e.qty});
-    if(e.card.id>=1000000) customDefs.push(e.card);
-  });
-  const payload = {v:1, cards, customDefs};
-  const json = JSON.stringify(payload);
-  const code = btoa(unescape(encodeURIComponent(json)));
+  const hasCustom = [...deck.values()].some(e=>e.card.id>=1000000);
+  if(hasCustom){
+    // 自作カード（画像込み）は文字コードにすると長すぎるため、ファイルとして書き出す
+    const cards = [];
+    const customDefs = [];
+    deck.forEach(e=>{
+      cards.push({id:e.card.id, qty:e.qty});
+      if(e.card.id>=1000000) customDefs.push(e.card);
+    });
+    const payload = {v:1, cards, customDefs};
+    const blob = new Blob([JSON.stringify(payload)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'deck_share.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    document.getElementById('shareDeckOutput').style.display='none';
+    document.getElementById('shareCopyBtn').style.display='none';
+    flashMsg('自作カードを含むためファイルとして書き出しました（「📂 共有ファイルから読み込む」で読み込めます）');
+    return;
+  }
+  // 元データのカードだけなら、短い文字コードを発行できる
+  const parts = [];
+  deck.forEach(e=> parts.push(`${e.card.id}*${e.qty}`));
+  const code = btoa('D1|' + parts.join(','));
   const out = document.getElementById('shareDeckOutput');
   out.value = code;
   out.style.display = 'block';
@@ -2013,20 +2041,19 @@ document.getElementById('shareCopyBtn').addEventListener('click', ()=>{
     document.execCommand('copy'); flashMsg('コピーしました');
   });
 });
-document.getElementById('importDeckBtn').addEventListener('click', async ()=>{
-  const code = document.getElementById('importDeckInput').value.trim();
-  if(!code){ flashMsg('コードを貼り付けてください'); return; }
-  let payload;
-  try{
-    const json = decodeURIComponent(escape(atob(code)));
-    payload = JSON.parse(json);
-  }catch(e){ flashMsg('コードの読み込みに失敗しました（コードが正しいか確認してください）'); return; }
+async function bImportDeckPayload(payload){
   const idMap = {};
   for(const def of (payload.customDefs||[])){
-    const newId = nextCustomId++;
-    const newCard = {...def, id:newId};
-    customCards[newId] = newCard;
-    await idbPut('custom', newCard);
+    let newId;
+    const existing = def.originId ? Object.values(customCards).find(c=>c.originId===def.originId) : null;
+    if(existing){
+      newId = existing.id;
+    } else {
+      newId = nextCustomId++;
+      const newCard = {...def, id:newId};
+      customCards[newId] = newCard;
+      await idbPut('custom', newCard);
+    }
     idMap[def.id] = newId;
   }
   rebuildLib();
@@ -2040,8 +2067,40 @@ document.getElementById('importDeckBtn').addEventListener('click', async ()=>{
   }
   initFilters();
   render(); renderDeck(); renderEval();
-  document.getElementById('importDeckInput').value = '';
   flashMsg(missing ? `デッキを読み込みました（${missing}種類は見つかりませんでした）` : 'デッキを読み込みました');
+}
+document.getElementById('importDeckBtn').addEventListener('click', async ()=>{
+  const code = document.getElementById('importDeckInput').value.trim();
+  if(!code){ flashMsg('コードを貼り付けてください'); return; }
+  let payload;
+  try{
+    const decoded = atob(code);
+    if(decoded.startsWith('D1|')){
+      const parts = decoded.slice(3).split(',').filter(Boolean);
+      const cards = parts.map(p=>{ const [id,qty] = p.split('*'); return {id:Number(id), qty:Number(qty)}; });
+      payload = {cards, customDefs:[]};
+    } else {
+      const json = decodeURIComponent(escape(decoded));
+      payload = JSON.parse(json);
+    }
+  }catch(e){ flashMsg('コードの読み込みに失敗しました（コードが正しいか確認してください）'); return; }
+  await bImportDeckPayload(payload);
+  document.getElementById('importDeckInput').value = '';
+});
+document.getElementById('importDeckFileBtn').addEventListener('click', ()=>{
+  document.getElementById('importDeckFileInput').click();
+});
+document.getElementById('importDeckFileInput').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  try{
+    const text = await file.text();
+    const payload = JSON.parse(text);
+    await bImportDeckPayload(payload);
+  }catch(err){
+    flashMsg('ファイルの読み込みに失敗しました');
+  }
+  e.target.value = '';
 });
 
 // ================= オンライン対戦 =================
@@ -2572,15 +2631,17 @@ function bRenderOpp(){
 function bStackEl(entry, zoneKey, idx, interactive){
   const ids = [...(entry.stack||[]), entry.id]; // 下から上の順（最後が現在表向きのカード）
   const n = ids.length;
+  const topCard = CM(entry.id);
   const wrap = document.createElement('div');
   wrap.className = 'mcard stackWrap' + (entry.tapped?' tapped':'')
-    + (interactive && bSelected && bSelected.zone===zoneKey && bSelected.index===idx ? ' selected':'');
+    + (interactive && bSelected && bSelected.zone===zoneKey && bSelected.index===idx ? ' selected':'')
+    + bEffectClass(topCard);
   ids.forEach((id, i)=>{
     const c = CM(id);
     const img = document.createElement('img');
     img.src = imgSrc(c);
     img.title = c.name;
-    img.className = 'stackImg' + bEffectClass(c);
+    img.className = 'stackImg';
     const off = (n-1-i)*6;
     img.style.left = off+'px';
     img.style.top = off+'px';
