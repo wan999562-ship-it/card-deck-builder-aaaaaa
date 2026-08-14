@@ -75,6 +75,16 @@
     border-radius:8px;padding:8px;font-size:12px;cursor:pointer;width:100%;margin-top:6px;}
   button.sec-btn:hover{color:var(--text);border-color:var(--text);}
 
+  .deckGroup{background:var(--panel2);border:1px solid var(--border);border-radius:8px;
+    padding:8px 10px;margin-top:8px;}
+  .deckGroupToggle{margin:0;font-size:13px;color:var(--text);cursor:pointer;
+    display:flex;justify-content:space-between;align-items:center;user-select:none;}
+  .dgArrow{color:var(--muted);font-size:11px;transition:transform .15s;}
+  .deckGroupContent{margin-top:8px;}
+  .deckGroup.collapsed .deckGroupContent{display:none;}
+  .deckGroup .main-btn, .deckGroup .sec-btn{margin-top:6px;}
+  .deckGroup .main-btn:first-child, .deckGroup .sec-btn:first-child{margin-top:0;}
+
   #deckProgress{height:6px;border-radius:3px;background:#11131a;overflow:hidden;margin-bottom:10px;}
   #deckProgress .fill{height:100%;background:var(--accent);transition:width .15s;}
   #deckProgress .fill.full{background:var(--accent3);}
@@ -274,7 +284,7 @@
   .stackWrap{overflow:visible;aspect-ratio:1300/1816;}
   .stackWrap .stackImg{position:absolute;width:100%;border-radius:5px;display:block;border:2px solid transparent;}
   .stackWrap.selected .stackImg:last-child{border-color:var(--accent3);}
-  .stackWrap.tapped .stackImg:last-child{transform:rotate(90deg);}
+  .stackWrap.tapped{transform:rotate(90deg);}
   /* 表向きカードのエフェクト */
   .cardfx-glow img{box-shadow:0 0 10px 4px rgba(255,255,255,.75);}
   .cardfx-pulse img{animation:cardfxPulse 1.6s ease-in-out infinite;}
@@ -495,23 +505,42 @@
       <h3 id="evalToggle">📊 デッキ評価 <span id="evalArrow">▼</span></h3>
       <div id="evalContent">デッキにカードを追加すると評価が表示されます</div>
     </div>
-    <button class="main-btn" id="downloadBtn" disabled>📦 画像フォルダをダウンロード（原画質）</button>
-    <button class="main-btn" id="udonBtn" disabled style="background:var(--accent3);color:#0b1a14;">🎲 ユドナリウム山札を出力（直接読込み用）</button>
-    <button class="sec-btn" id="saveDeckBtn">💾 このデッキを保存</button>
-    <select id="savedDeckSel" style="width:100%;margin-top:6px;"><option value="">-- 保存済みデッキ --</option></select>
-    <div style="display:flex;gap:6px;margin-top:6px;">
-      <button class="sec-btn" id="loadDeckBtn" style="margin-top:0;">読み込む</button>
-      <button class="sec-btn" id="deleteDeckBtn" style="margin-top:0;">削除</button>
+    <div class="deckGroup collapsed">
+      <h3 class="deckGroupToggle">📤 出力 <span class="dgArrow">▶</span></h3>
+      <div class="deckGroupContent">
+        <button class="main-btn" id="downloadBtn" disabled>📦 画像フォルダをダウンロード（原画質）</button>
+        <button class="main-btn" id="udonBtn" disabled style="background:var(--accent3);color:#0b1a14;">🎲 ユドナリウム山札を出力（直接読込み用）</button>
+      </div>
     </div>
-    <button class="sec-btn" id="shareDeckBtn">🔗 このデッキを共有する</button>
-    <textarea id="shareDeckOutput" readonly style="display:none;width:100%;height:60px;margin-top:6px;
-      background:#11131a;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px;font-size:11px;"></textarea>
-    <button class="sec-btn" id="shareCopyBtn" style="display:none;">コードをコピー</button>
-    <textarea id="importDeckInput" placeholder="共有コードをここに貼り付け" style="width:100%;height:50px;margin-top:8px;
-      background:#11131a;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px;font-size:11px;"></textarea>
-    <button class="sec-btn" id="importDeckBtn">📥 共有コードから読み込む</button>
-    <input type="file" id="importDeckFileInput" accept="application/json" style="display:none;">
-    <button class="sec-btn" id="importDeckFileBtn">📂 共有ファイルから読み込む</button>
+
+    <div class="deckGroup collapsed">
+      <h3 class="deckGroupToggle">🔗 共有 <span class="dgArrow">▶</span></h3>
+      <div class="deckGroupContent">
+        <button class="sec-btn" id="shareDeckBtn">共有コードにする</button>
+        <textarea id="shareDeckOutput" readonly style="display:none;width:100%;height:60px;margin-top:6px;
+          background:#11131a;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px;font-size:11px;"></textarea>
+        <button class="sec-btn" id="shareCopyBtn" style="display:none;">コードをコピー</button>
+        <div style="border-top:1px solid var(--border);margin:10px 0;"></div>
+        <textarea id="importDeckInput" placeholder="共有コードをここに貼り付け" style="width:100%;height:50px;
+          background:#11131a;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px;font-size:11px;"></textarea>
+        <button class="sec-btn" id="importDeckBtn">共有コードから読み込む</button>
+        <input type="file" id="importDeckFileInput" accept="application/json" style="display:none;">
+        <button class="sec-btn" id="importDeckFileBtn">共有ファイルから読み込む</button>
+      </div>
+    </div>
+
+    <div class="deckGroup collapsed">
+      <h3 class="deckGroupToggle">💾 保存済みデッキ <span class="dgArrow">▶</span></h3>
+      <div class="deckGroupContent">
+        <button class="sec-btn" id="saveDeckBtn">このデッキを保存</button>
+        <select id="savedDeckSel" style="width:100%;margin-top:6px;"><option value="">-- 保存済みデッキ --</option></select>
+        <div style="display:flex;gap:6px;margin-top:6px;">
+          <button class="sec-btn" id="loadDeckBtn" style="margin-top:0;">読み込む</button>
+          <button class="sec-btn" id="deleteDeckBtn" style="margin-top:0;">削除</button>
+        </div>
+      </div>
+    </div>
+
     <button class="sec-btn" id="clearBtn">デッキを空にする</button>
   </aside>
 </div>
@@ -1958,6 +1987,14 @@ document.getElementById('evalToggle').addEventListener('click', ()=>{
   const box = document.getElementById('evalBox');
   box.classList.toggle('collapsed');
   document.getElementById('evalArrow').textContent = box.classList.contains('collapsed') ? '▶' : '▼';
+});
+
+document.querySelectorAll('.deckGroupToggle').forEach(h=>{
+  h.addEventListener('click', ()=>{
+    const group = h.closest('.deckGroup');
+    group.classList.toggle('collapsed');
+    h.querySelector('.dgArrow').textContent = group.classList.contains('collapsed') ? '▶' : '▼';
+  });
 });
 
 // ================= デッキの保存／読み込み（複数管理） =================
