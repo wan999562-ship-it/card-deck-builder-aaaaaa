@@ -307,7 +307,7 @@
     100%{box-shadow:0 0 0 2px #ff5555;}
   }
   .mcard img{width:100%;border-radius:5px;display:block;border:2px solid transparent;transition:transform .1s;}
-  .mcard.tapped img{transform:rotate(90deg);}
+  .mcard.tapped:not(.stackWrap) img{transform:rotate(90deg);}
   .mcard.selected img{border-color:var(--accent3);}
   .backCard{width:52px;height:72px;border-radius:5px;overflow:hidden;background:#0b0c10;position:relative;}
   .backCard img{width:100%;height:100%;object-fit:cover;}
